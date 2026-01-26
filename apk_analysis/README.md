@@ -4,6 +4,8 @@ This directory contains tools and documentation for extracting the native librar
 from the official Y-Trac APK for use with the CTRK Converter app.
 
 > **Tested with Y-Trac version 1.3.8**
+>
+> **Platform:** macOS ARM (Apple Silicon) only
 
 ## Prerequisites
 

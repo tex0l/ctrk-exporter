@@ -60,6 +60,8 @@ pip install -r requirements.txt
 The Android converter uses the official `libSensorsRecordIF.so` native library from Y-Trac for 100% accurate parsing.
 
 > **Tested with Y-Trac version 1.3.8**
+>
+> **Platform:** macOS ARM (Apple Silicon) only
 
 ```bash
 # Step 1: Setup (download APK manually first, then run)
@@ -120,39 +122,38 @@ The parser exports CSV files with the following columns:
 
 ```
 ctrk-parser/
-├── ctrk-exporter           # CLI entry point
+├── ctrk-exporter              # CLI entry point
 ├── src/
-│   ├── ctrk_parser.py      # Python parser
-│   └── visualize_*.py      # Visualization scripts
-├── scripts/                # Utility scripts
-├── android_app/            # Android converter app
-├── apk_analysis/           # APK extraction tools
-├── docs/                   # Technical documentation
-├── output/                 # Generated files (gitignored)
-└── input/                 # Test data (gitignored)
+│   ├── ctrk_parser.py         # Python parser
+│   └── visualize_all_channels.py
+├── android_app/               # Android converter app (macOS ARM only)
+├── apk_analysis/              # APK extraction tools
+├── docs/
+│   ├── CTRK_FORMAT_SPECIFICATION.md  # Binary file format
+│   └── NATIVE_LIBRARY.md             # Reverse engineering notes
+└── output/                    # Generated files (gitignored)
 ```
 
-## Technical Details
+## Documentation
 
-### Calibration Formulas
+- **[CTRK Format Specification](docs/CTRK_FORMAT_SPECIFICATION.md)** - Complete binary file format documentation
+- **[Native Library Analysis](docs/NATIVE_LIBRARY.md)** - Reverse engineering of libSensorsRecordIF.so
 
-Raw values from the CAN bus are converted using these formulas:
+## Calibration Formulas
 
-```python
-rpm = raw / 2.56                              # RPM
-speed = (raw / 64.0) * 3.6                    # km/h
-throttle = ((raw / 8.192) * 100) / 84.96      # %
-lean = (raw / 100.0) - 90.0                   # degrees
-pitch = (raw / 100.0) - 300.0                 # °/s
-brake = raw / 32.0                            # bar
-temp = (raw / 1.6) - 30.0                     # °C
-accel = (raw / 1000.0) - 7.0                  # G
-fuel = raw / 100.0                            # cc
-```
+Raw CAN bus values are converted using these formulas:
 
-### File Format
-
-See `docs/CTRK_FORMAT_SPECIFICATION.md` for complete documentation of the binary format.
+| Channel | Formula | Unit |
+|---------|---------|------|
+| RPM | raw / 2.56 | RPM |
+| Speed | (raw / 64.0) × 3.6 | km/h |
+| Throttle | ((raw / 8.192) × 100) / 84.96 | % |
+| Lean | (raw / 100.0) - 90.0 | degrees |
+| Pitch | (raw / 100.0) - 300.0 | °/s |
+| Brake | raw / 32.0 | bar |
+| Temperature | (raw / 1.6) - 30.0 | °C |
+| Acceleration | (raw / 1000.0) - 7.0 | G |
+| Fuel | raw / 100.0 | cc |
 
 ## License
 

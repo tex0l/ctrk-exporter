@@ -180,7 +180,7 @@ ctrk-exporter/
 
 I'm not a motorcyclist. A friend told me he had tried to extract data from his CTRK files without success. I said it would be easy with Claude. It became a matter of principle.
 
-The truth is: I burned through my entire Claude Max subscription on this, but I got it done in 48 hours.
+The truth is: it took 23% of my weekly Claude Max quota, but I got it done in 48 hours.
 
 ## License
 

@@ -415,11 +415,11 @@ def cmd_graph(args):
 
     print(f"=== Generating graphs from {input_path.name} ===\n")
 
-    # Determine output directory
+    # Determine output directory (default: <csv_name>_graphs/)
     if args.output:
         output_dir = Path(args.output).resolve()
     else:
-        output_dir = input_path.parent / "graphs"
+        output_dir = input_path.parent / f"{input_path.stem}_graphs"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Load data

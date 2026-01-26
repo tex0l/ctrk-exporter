@@ -264,9 +264,11 @@ def cmd_android_convert(args):
         print("Error: App not installed. Run './ctrk-exporter android setup' first.")
         return 1
 
-    # Push CTRK file to device
+    # Push CTRK file to app-specific directory (no special permissions needed on Android 11+)
     print("Step 1: Push CTRK file to device")
-    device_path = "/sdcard/Download/" + input_path.name
+    app_files_dir = "/storage/emulated/0/Android/data/com.ctrk.converter/files"
+    run_cmd(f"adb shell mkdir -p '{app_files_dir}'", check=False)
+    device_path = f"{app_files_dir}/{input_path.name}"
     run_cmd(f"adb push '{input_path}' '{device_path}'")
 
     # Launch app
@@ -280,9 +282,9 @@ def cmd_android_convert(args):
     run_cmd("adb shell uiautomator dump /sdcard/ui.xml", check=False)
     result = run_cmd("adb shell cat /sdcard/ui.xml", capture=True, check=False)
 
-    # Find "Convert CTRK Files" button
+    # Find "CONVERT CTRK FILES" button (text is uppercase on Android)
     import re
-    match = re.search(r'text="Convert CTRK Files"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', result.stdout)
+    match = re.search(r'text="CONVERT CTRK FILES"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', result.stdout, re.IGNORECASE)
     if match:
         x1, y1, x2, y2 = map(int, match.groups())
         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
@@ -329,16 +331,34 @@ def cmd_android_convert(args):
             if main_csv.exists():
                 shutil.copy(main_csv, args.output)
                 print(f"  Copied to: {args.output}")
+
+        # Cleanup device
+        print("\nStep 6: Cleanup")
+        run_cmd(f"adb shell rm '{device_path}'", check=False)
+
+        print("\n=== Conversion Complete ===")
+        return 0
     else:
-        print("  Warning: No output files found")
-        print("  Check app logs: adb logcat -s CTRKConverter")
+        print("  Error: No output files found")
+        print()
+        print("  Checking app logs...")
+        result = run_cmd("adb logcat -d -s CTRKConverter:* *:E | tail -20", capture=True, check=False)
+        if result.stdout.strip():
+            print(result.stdout)
+        else:
+            print("  No relevant logs found.")
+        print()
+        print("  Possible causes:")
+        print("  - The app UI may have changed")
+        print("  - The native library may not be loaded correctly")
+        print("  - Try running './ctrk-exporter android setup' again")
 
-    # Cleanup device
-    print("\nStep 6: Cleanup")
-    run_cmd(f"adb shell rm '{device_path}'", check=False)
+        # Cleanup device
+        print("\nStep 6: Cleanup")
+        run_cmd(f"adb shell rm '{device_path}'", check=False)
 
-    print("\n=== Conversion Complete ===")
-    return 0
+        print("\n=== Conversion FAILED ===")
+        return 1
 
 
 def cmd_android_clean(args):

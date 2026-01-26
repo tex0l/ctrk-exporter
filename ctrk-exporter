@@ -1,0 +1,401 @@
+#!/usr/bin/env python3
+"""
+CTRK Exporter - Command-line tool for parsing and converting CTRK telemetry files.
+
+Usage:
+    ctrk-exporter parse <input.CTRK> [-o OUTPUT] [--raw]
+    ctrk-exporter android setup
+    ctrk-exporter android convert <input.CTRK> [-o OUTPUT]
+    ctrk-exporter android clean
+"""
+
+import argparse
+import subprocess
+import sys
+import shutil
+import time
+import os
+from pathlib import Path
+from datetime import datetime
+
+# Project paths
+PROJECT_ROOT = Path(__file__).parent.resolve()
+SRC_DIR = PROJECT_ROOT / "src"
+OUTPUT_DIR = PROJECT_ROOT / "output"
+APK_ANALYSIS_DIR = PROJECT_ROOT / "apk_analysis"
+ANDROID_APP_DIR = PROJECT_ROOT / "android_app"
+JNILIBS_DIR = ANDROID_APP_DIR / "app" / "src" / "main" / "jniLibs"
+
+
+def run_cmd(cmd, check=True, capture=False, cwd=None):
+    """Run a shell command."""
+    print(f"  $ {cmd}")
+    result = subprocess.run(
+        cmd, shell=True, check=check, cwd=cwd,
+        capture_output=capture, text=True
+    )
+    return result
+
+
+def ensure_output_dir():
+    """Create output directory if it doesn't exist."""
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    return OUTPUT_DIR
+
+
+def cmd_parse(args):
+    """Parse a CTRK file using the Python parser."""
+    input_path = Path(args.input).resolve()
+    if not input_path.exists():
+        print(f"Error: File not found: {input_path}")
+        return 1
+
+    # Determine output path
+    if args.output:
+        output_path = Path(args.output).resolve()
+    else:
+        ensure_output_dir()
+        output_path = OUTPUT_DIR / f"{input_path.stem}_parsed.csv"
+
+    # Ensure output directory exists
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Import and run parser
+    sys.path.insert(0, str(SRC_DIR))
+    from ctrk_parser import CTRKParser
+
+    print(f"Parsing {input_path.name}...")
+    parser = CTRKParser(str(input_path))
+    parser.parse()
+
+    # Export
+    parser.export_csv(str(output_path))
+    print(f"Output: {output_path}")
+
+    if args.raw:
+        raw_path = output_path.with_suffix('.raw.csv')
+        parser.export_raw_csv(str(raw_path))
+        print(f"Raw output: {raw_path}")
+
+    return 0
+
+
+def show_proprietary_disclaimer():
+    """Display disclaimer about proprietary components and get user consent."""
+    print()
+    print("=" * 70)
+    print("DISCLAIMER - PROPRIETARY COMPONENTS")
+    print("=" * 70)
+    print()
+    print("This tool extracts and uses proprietary native libraries from the")
+    print("Yamaha Y-Trac application. These libraries are the intellectual")
+    print("property of Yamaha Motor Co., Ltd.")
+    print()
+    print("By proceeding, you acknowledge that:")
+    print()
+    print("  1. You are downloading and using proprietary Yamaha software")
+    print("     components at your own risk and responsibility.")
+    print()
+    print("  2. The native library (libSensorsRecordIF.so) is extracted from")
+    print("     an APK that you have obtained yourself.")
+    print()
+    print("  3. This project provides only interoperability code to interface")
+    print("     with that library. No proprietary code is distributed.")
+    print()
+    print("  4. You accept full responsibility for compliance with any")
+    print("     applicable licenses or terms of service.")
+    print()
+    print("=" * 70)
+    print()
+
+    while True:
+        response = input("Do you accept these terms and wish to proceed? [y/N] ").strip().lower()
+        if response in ('y', 'yes'):
+            return True
+        elif response in ('n', 'no', ''):
+            return False
+        else:
+            print("Please answer 'y' or 'n'")
+
+
+def cmd_android_setup(args):
+    """Setup the Android app: download APK, extract .so, build app."""
+    print("=== Android App Setup ===\n")
+
+    # Step 1: Check for APK
+    apk_path = APK_ANALYSIS_DIR / "ytrac.apk"
+    if not apk_path.exists():
+        print("Step 1: Download Y-Trac APK")
+        print("  APK not found. Please download manually from:")
+        print("  https://apkpure.com/y-trac/com.yamaha.jp.dataviewer")
+        print(f"  Save to: {apk_path}")
+        print()
+        print("  Or pull from a device with Y-Trac installed:")
+        print("  $ adb shell pm path com.yamaha.jp.dataviewer")
+        print(f"  $ adb pull <path> {apk_path}")
+        return 1
+    else:
+        print(f"Step 1: APK found at {apk_path}")
+
+    # Show disclaimer and get consent before extracting proprietary components
+    if not show_proprietary_disclaimer():
+        print("\nSetup cancelled.")
+        return 1
+
+    # Step 2: Extract native library
+    print("\nStep 2: Extract native library")
+    extract_dir = APK_ANALYSIS_DIR / "ytrac_extracted"
+
+    # Clean previous extraction
+    if extract_dir.exists():
+        shutil.rmtree(extract_dir)
+    extract_dir.mkdir(parents=True)
+
+    # Extract APK (it's a ZIP file)
+    run_cmd(f"unzip -q '{apk_path}' -d '{extract_dir}'")
+
+    # Copy .so files to Android app
+    lib_dir = extract_dir / "lib"
+    if not lib_dir.exists():
+        print("  Error: No native libraries found in APK")
+        return 1
+
+    print("  Found architectures:", list(lib_dir.iterdir()))
+
+    for arch in ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"]:
+        src_so = lib_dir / arch / "libSensorsRecordIF.so"
+        if src_so.exists():
+            dest_dir = JNILIBS_DIR / arch
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy(src_so, dest_dir / "libSensorsRecordIF.so")
+            print(f"  Installed: {arch}/libSensorsRecordIF.so")
+
+    # Cleanup
+    shutil.rmtree(extract_dir)
+    print("  Cleaned up extraction directory")
+
+    # Step 3: Build Android app
+    print("\nStep 3: Build Android app")
+    gradlew = ANDROID_APP_DIR / "gradlew"
+    if not gradlew.exists():
+        print("  Error: gradlew not found")
+        return 1
+
+    result = run_cmd("./gradlew assembleDebug", cwd=ANDROID_APP_DIR, check=False)
+    if result.returncode != 0:
+        print("  Build failed!")
+        return 1
+
+    apk_output = ANDROID_APP_DIR / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
+    if apk_output.exists():
+        print(f"  Built: {apk_output}")
+    else:
+        print("  Error: APK not found after build")
+        return 1
+
+    # Step 4: Check for emulator/device
+    print("\nStep 4: Check for device/emulator")
+    result = run_cmd("adb devices", capture=True, check=False)
+    if "device" not in result.stdout or result.stdout.strip().endswith("devices"):
+        print("  No device connected. Start an emulator:")
+        print("  $ emulator -list-avds")
+        print("  $ emulator -avd <avd_name> &")
+        return 1
+    print("  Device found")
+
+    # Step 5: Install app
+    print("\nStep 5: Install app")
+    run_cmd(f"adb install -r '{apk_output}'", check=False)
+
+    print("\n=== Setup Complete ===")
+    print("Run 'ctrk android convert <file.CTRK>' to convert a file")
+    return 0
+
+
+def cmd_android_convert(args):
+    """Convert a CTRK file using the Android app."""
+    input_path = Path(args.input).resolve()
+    if not input_path.exists():
+        print(f"Error: File not found: {input_path}")
+        return 1
+
+    print(f"=== Converting {input_path.name} via Android app ===\n")
+
+    # Check device
+    result = run_cmd("adb devices", capture=True, check=False)
+    if "device" not in result.stdout or result.stdout.strip().endswith("devices"):
+        print("Error: No device connected. Run 'ctrk android setup' first.")
+        return 1
+
+    # Check app is installed
+    result = run_cmd("adb shell pm list packages | grep com.ctrk.converter", capture=True, check=False)
+    if "com.ctrk.converter" not in result.stdout:
+        print("Error: App not installed. Run 'ctrk android setup' first.")
+        return 1
+
+    # Push CTRK file to device
+    print("Step 1: Push CTRK file to device")
+    device_path = "/sdcard/Download/" + input_path.name
+    run_cmd(f"adb push '{input_path}' '{device_path}'")
+
+    # Launch app
+    print("\nStep 2: Launch app")
+    run_cmd("adb shell am start -n com.ctrk.converter/.MainActivity")
+    time.sleep(2)
+
+    # Click convert button using UI coordinates
+    print("\nStep 3: Trigger conversion")
+    # Get UI hierarchy to find button
+    run_cmd("adb shell uiautomator dump /sdcard/ui.xml", check=False)
+    result = run_cmd("adb shell cat /sdcard/ui.xml", capture=True, check=False)
+
+    # Find "Convert CTRK Files" button
+    import re
+    match = re.search(r'text="Convert CTRK Files"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', result.stdout)
+    if match:
+        x1, y1, x2, y2 = map(int, match.groups())
+        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+        run_cmd(f"adb shell input tap {cx} {cy}")
+    else:
+        print("  Warning: Could not find button, trying default coordinates")
+        run_cmd("adb shell input tap 540 200")
+
+    # Wait for conversion
+    print("\nStep 4: Waiting for conversion...")
+    time.sleep(5)
+
+    # Pull output files
+    print("\nStep 5: Retrieve output files")
+    ensure_output_dir()
+
+    timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    output_subdir = OUTPUT_DIR / f"android-{timestamp}"
+    output_subdir.mkdir(parents=True, exist_ok=True)
+
+    base_name = input_path.stem
+
+    # Try multiple possible output locations
+    device_locations = [
+        f"/sdcard/Download/{base_name}_native.csv",
+        f"/sdcard/Download/{base_name}_native_raw.csv",
+        f"/storage/emulated/0/Android/data/com.ctrk.converter/files/{base_name}_native.csv",
+        f"/storage/emulated/0/Android/data/com.ctrk.converter/files/{base_name}_native_raw.csv",
+    ]
+
+    found_files = []
+    for loc in device_locations:
+        result = run_cmd(f"adb pull '{loc}' '{output_subdir}/'", check=False)
+        if result.returncode == 0:
+            found_files.append(loc.split("/")[-1])
+
+    if found_files:
+        print(f"\n  Retrieved: {', '.join(found_files)}")
+        print(f"  Output directory: {output_subdir}")
+
+        # Copy main output to expected location
+        if args.output:
+            main_csv = output_subdir / f"{base_name}_native.csv"
+            if main_csv.exists():
+                shutil.copy(main_csv, args.output)
+                print(f"  Copied to: {args.output}")
+    else:
+        print("  Warning: No output files found")
+        print("  Check app logs: adb logcat -s CTRKConverter")
+
+    # Cleanup device
+    print("\nStep 6: Cleanup")
+    run_cmd(f"adb shell rm '{device_path}'", check=False)
+
+    print("\n=== Conversion Complete ===")
+    return 0
+
+
+def cmd_android_clean(args):
+    """Clean Android build artifacts and extracted files."""
+    print("=== Cleaning Android artifacts ===\n")
+
+    # Clean jniLibs
+    for arch_dir in JNILIBS_DIR.iterdir():
+        if arch_dir.is_dir():
+            for so_file in arch_dir.glob("*.so"):
+                so_file.unlink()
+                print(f"  Removed: {so_file}")
+
+    # Clean build directory
+    build_dir = ANDROID_APP_DIR / "app" / "build"
+    if build_dir.exists():
+        shutil.rmtree(build_dir)
+        print(f"  Removed: {build_dir}")
+
+    gradle_dir = ANDROID_APP_DIR / ".gradle"
+    if gradle_dir.exists():
+        shutil.rmtree(gradle_dir)
+        print(f"  Removed: {gradle_dir}")
+
+    # Clean APK analysis
+    for item in ["ytrac_extracted", "ytrac_decompiled"]:
+        path = APK_ANALYSIS_DIR / item
+        if path.exists():
+            shutil.rmtree(path)
+            print(f"  Removed: {path}")
+
+    print("\n=== Clean Complete ===")
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="ctrk-exporter",
+        description="CTRK Exporter - Parse and convert Yamaha Y-Trac telemetry files",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  ctrk-exporter parse session.CTRK                    # Parse to output/session_parsed.csv
+  ctrk-exporter parse session.CTRK -o result.csv      # Parse to specific file
+  ctrk-exporter parse session.CTRK --raw              # Also export raw values
+
+  ctrk-exporter android setup                         # Setup Android converter app
+  ctrk-exporter android convert session.CTRK          # Convert using native library
+  ctrk-exporter android clean                         # Clean build artifacts
+"""
+    )
+
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
+
+    # Parse command
+    parse_parser = subparsers.add_parser("parse", help="Parse CTRK file with Python parser")
+    parse_parser.add_argument("input", help="Input CTRK file")
+    parse_parser.add_argument("-o", "--output", help="Output CSV file (default: output/<name>_parsed.csv)")
+    parse_parser.add_argument("--raw", action="store_true", help="Also export raw uncalibrated values")
+
+    # Android commands
+    android_parser = subparsers.add_parser("android", help="Android converter app commands")
+    android_sub = android_parser.add_subparsers(dest="android_cmd", help="Android command")
+
+    setup_parser = android_sub.add_parser("setup", help="Setup Android app (download APK, extract .so, build)")
+    convert_parser = android_sub.add_parser("convert", help="Convert CTRK file using Android app")
+    convert_parser.add_argument("input", help="Input CTRK file")
+    convert_parser.add_argument("-o", "--output", help="Output CSV file")
+    clean_parser = android_sub.add_parser("clean", help="Clean Android build artifacts")
+
+    args = parser.parse_args()
+
+    if args.command == "parse":
+        return cmd_parse(args)
+    elif args.command == "android":
+        if args.android_cmd == "setup":
+            return cmd_android_setup(args)
+        elif args.android_cmd == "convert":
+            return cmd_android_convert(args)
+        elif args.android_cmd == "clean":
+            return cmd_android_clean(args)
+        else:
+            android_parser.print_help()
+            return 1
+    else:
+        parser.print_help()
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

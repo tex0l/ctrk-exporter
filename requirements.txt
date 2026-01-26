@@ -1,0 +1,6 @@
+# Optional dependencies for visualization scripts (src/visualize_*.py)
+# The main parser (ctrk_parser.py) has no external dependencies
+
+pandas>=1.5.0
+matplotlib>=3.7.0
+numpy>=1.24.0

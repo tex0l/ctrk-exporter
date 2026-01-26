@@ -1,0 +1,28 @@
+# Output and input (generated files and test data)
+output/
+input/
+
+# Claude Code instructions
+CLAUDE.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Android
+android_app/.gradle/
+android_app/**/build/
+android_app/app/src/main/jniLibs/**/*.so
+
+# APK analysis (proprietary)
+apk_analysis/*.apk
+apk_analysis/ytrac_*/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+.claude/

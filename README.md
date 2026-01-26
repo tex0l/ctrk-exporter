@@ -190,4 +190,4 @@ MIT License
 
 - File format reverse-engineered from the official Y-Trac application
 - Calibration formulas verified using radare2 disassembly of the native library
-- Built entirely with [Claude Code](https://claude.ai/code)
+- Heavily assisted by [Claude Code](https://claude.ai/code)

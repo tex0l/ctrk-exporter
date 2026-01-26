@@ -24,7 +24,7 @@ cd ctrk-parser
 # Create virtual environment (optional, for visualization scripts)
 python3 -m venv .venv
 source .venv/bin/activate
-pip install pandas matplotlib numpy
+pip install -r requirements.txt
 ```
 
 ## CLI Usage

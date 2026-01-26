@@ -119,80 +119,26 @@ def show_proprietary_disclaimer():
 
 
 # Y-Trac version tested and verified
-YTRAC_VERSION = "2.0.7"
-YTRAC_VERSION_CODE = "207"
-APK_DOWNLOAD_URL = f"https://d.apkpure.com/b/APK/com.yamaha.jp.dataviewer?versionCode={YTRAC_VERSION_CODE}"
-APK_PAGE_URL = "https://apkpure.com/y-trac/com.yamaha.jp.dataviewer"
+YTRAC_VERSION = "1.3.8"
 
 
-def prompt_download_apk(apk_path):
-    """Prompt user to download APK automatically or manually."""
+def show_apk_download_instructions(apk_path):
+    """Show instructions to download the APK manually."""
     print("Step 1: Download Y-Trac APK")
     print("  APK not found.")
     print()
     print(f"  Tested version: {YTRAC_VERSION}")
-    print(f"  URL: {APK_PAGE_URL}")
     print()
-    print("  You can download automatically, but note that:")
-    print("  - This downloads from APKPure, a third-party source")
-    print("  - You assume all risks related to this download")
+    print("  Download from one of these sources:")
+    print("  - https://apkpure.com/y-trac/com.yamaha.jp.dataviewer")
+    print("  - https://y-trac.en.aptoide.com/app")
+    print("  - https://play.google.com/store/apps/details?id=com.yamaha.jp.dataviewer")
     print()
-
-    while True:
-        response = input("  Download automatically? [y/N] ").strip().lower()
-        if response in ('y', 'yes'):
-            return download_apk(apk_path)
-        elif response in ('n', 'no', ''):
-            print()
-            print("  Manual download options:")
-            print(f"  1. Download version {YTRAC_VERSION} from: {APK_PAGE_URL}")
-            print(f"     Save to: {apk_path}")
-            print()
-            print("  2. Or pull from a device with Y-Trac installed:")
-            print("     $ adb shell pm path com.yamaha.jp.dataviewer")
-            print(f"     $ adb pull <path> {apk_path}")
-            return False
-        else:
-            print("  Please answer 'y' or 'n'")
-
-
-def download_apk(apk_path):
-    """Download APK from APKPure."""
+    print(f"  Save the APK to: {apk_path}")
     print()
-    print("  Downloading APK...")
-
-    # Ensure directory exists
-    apk_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Try curl first, then wget
-    if shutil.which("curl"):
-        result = run_cmd(
-            f"curl -L -o '{apk_path}' '{APK_DOWNLOAD_URL}'",
-            check=False
-        )
-    elif shutil.which("wget"):
-        result = run_cmd(
-            f"wget -O '{apk_path}' '{APK_DOWNLOAD_URL}'",
-            check=False
-        )
-    else:
-        print("  Error: Neither curl nor wget found. Please install one or download manually.")
-        return False
-
-    if result.returncode != 0 or not apk_path.exists():
-        print("  Error: Download failed. Please download manually.")
-        return False
-
-    # Verify it's a valid APK (ZIP file starting with PK)
-    with open(apk_path, 'rb') as f:
-        magic = f.read(2)
-    if magic != b'PK':
-        print("  Error: Downloaded file is not a valid APK.")
-        apk_path.unlink()
-        return False
-
-    print(f"  Downloaded: {apk_path}")
-    return True
+    print("  Or pull from a device with Y-Trac installed:")
+    print("    $ adb shell pm path com.yamaha.jp.dataviewer")
+    print(f"    $ adb pull <path> {apk_path}")
 
 
 def cmd_android_setup(args):
@@ -202,11 +148,7 @@ def cmd_android_setup(args):
     # Step 1: Check for APK
     apk_path = APK_ANALYSIS_DIR / "ytrac.apk"
     if not apk_path.exists():
-        if not prompt_download_apk(apk_path):
-            return 1
-        print()
-
-    if not apk_path.exists():
+        show_apk_download_instructions(apk_path)
         return 1
 
     print(f"Step 1: APK found at {apk_path}")

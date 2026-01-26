@@ -3,7 +3,7 @@
 This directory contains tools and documentation for extracting the native library
 from the official Y-Trac APK for use with the CTRK Converter app.
 
-> **Tested with Y-Trac version 2.0.7**
+> **Tested with Y-Trac version 1.3.8**
 
 ## Prerequisites
 

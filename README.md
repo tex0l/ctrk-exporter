@@ -46,7 +46,7 @@ pip install -r requirements.txt
 
 The Android converter uses the official `libSensorsRecordIF.so` native library from Y-Trac for 100% accurate parsing.
 
-> **Tested with Y-Trac version 2.0.7**
+> **Tested with Y-Trac version 1.3.8**
 
 ```bash
 # Step 1: Setup (download APK manually first, then run)

@@ -91,9 +91,11 @@ pip install -r requirements.txt
 > **Platform:** macOS ARM (Apple Silicon) only
 >
 > **Tested with:** Y-Trac version 1.3.8
+>
+> **Requires:** Manual APK download from [APKPure](https://apkpure.com/y-trac/com.yamaha.jp.dataviewer) or [APKMirror](https://www.apkmirror.com/?s=y-trac)
 
 ```bash
-./ctrk-exporter android setup                     # Download APK, build app
+./ctrk-exporter android setup                     # Extract .so from APK, build app
 ./ctrk-exporter android convert session.CTRK      # Convert file
 ./ctrk-exporter android clean                     # Clean build artifacts
 ```

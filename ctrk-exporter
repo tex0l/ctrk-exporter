@@ -221,7 +221,16 @@ def cmd_android_setup(args):
 
     # Step 5: Install app
     print("\nStep 5: Install app")
-    run_cmd(f"adb install -r '{apk_output}'", check=False)
+    result = run_cmd(f"adb install -r '{apk_output}'", check=False)
+    if result.returncode != 0:
+        print("  Failed to install app.")
+        print()
+        print("  Make sure an emulator is running:")
+        print("    $ emulator -list-avds")
+        print("    $ emulator -avd <avd_name> &")
+        print()
+        print("  Then re-run './ctrk-exporter android setup'")
+        return 1
 
     print("\n=== Setup Complete ===")
     print("Run './ctrk-exporter android convert <file.CTRK>' to convert a file")

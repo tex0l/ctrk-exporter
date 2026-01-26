@@ -118,7 +118,11 @@ def show_proprietary_disclaimer():
             print("Please answer 'y' or 'n'")
 
 
-APK_DOWNLOAD_URL = "https://d.apkpure.com/b/APK/com.yamaha.jp.dataviewer?version=latest"
+# Y-Trac version tested and verified
+YTRAC_VERSION = "2.0.7"
+YTRAC_VERSION_CODE = "207"
+APK_DOWNLOAD_URL = f"https://d.apkpure.com/b/APK/com.yamaha.jp.dataviewer?versionCode={YTRAC_VERSION_CODE}"
+APK_PAGE_URL = "https://apkpure.com/y-trac/com.yamaha.jp.dataviewer"
 
 
 def prompt_download_apk(apk_path):
@@ -126,7 +130,8 @@ def prompt_download_apk(apk_path):
     print("Step 1: Download Y-Trac APK")
     print("  APK not found.")
     print()
-    print("  URL: https://apkpure.com/y-trac/com.yamaha.jp.dataviewer")
+    print(f"  Tested version: {YTRAC_VERSION}")
+    print(f"  URL: {APK_PAGE_URL}")
     print()
     print("  You can download automatically, but note that:")
     print("  - This downloads from APKPure, a third-party source")
@@ -140,7 +145,7 @@ def prompt_download_apk(apk_path):
         elif response in ('n', 'no', ''):
             print()
             print("  Manual download options:")
-            print("  1. Download from: https://apkpure.com/y-trac/com.yamaha.jp.dataviewer")
+            print(f"  1. Download version {YTRAC_VERSION} from: {APK_PAGE_URL}")
             print(f"     Save to: {apk_path}")
             print()
             print("  2. Or pull from a device with Y-Trac installed:")

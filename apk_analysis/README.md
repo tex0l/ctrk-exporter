@@ -3,6 +3,8 @@
 This directory contains tools and documentation for extracting the native library
 from the official Y-Trac APK for use with the CTRK Converter app.
 
+> **Tested with Y-Trac version 2.0.7**
+
 ## Prerequisites
 
 - **jadx** - APK decompiler: `brew install jadx`

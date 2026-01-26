@@ -53,12 +53,13 @@ def cmd_parse(args):
     # Determine output path
     if args.output:
         output_path = Path(args.output).resolve()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
     else:
-        ensure_output_dir()
-        output_path = OUTPUT_DIR / f"{input_path.stem}_parsed.csv"
-
-    # Ensure output directory exists
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+        # Create timestamped subdirectory
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        run_dir = OUTPUT_DIR / timestamp
+        run_dir.mkdir(parents=True, exist_ok=True)
+        output_path = run_dir / f"{input_path.stem}_parsed.csv"
 
     # Import and run parser
     sys.path.insert(0, str(SRC_DIR))
@@ -312,7 +313,11 @@ def cmd_android_convert(args):
 
     # Pull output files
     print("\nStep 5: Retrieve output files")
-    ensure_output_dir()
+
+    # Create timestamped subdirectory
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    run_dir = OUTPUT_DIR / timestamp
+    run_dir.mkdir(parents=True, exist_ok=True)
 
     base_name = input_path.stem
 
@@ -326,17 +331,17 @@ def cmd_android_convert(args):
 
     found_files = []
     for loc in device_locations:
-        result = run_cmd(f"adb pull '{loc}' '{OUTPUT_DIR}/'", check=False)
+        result = run_cmd(f"adb pull '{loc}' '{run_dir}/'", check=False)
         if result.returncode == 0:
             found_files.append(loc.split("/")[-1])
 
     if found_files:
         print(f"\n  Retrieved: {', '.join(found_files)}")
-        print(f"  Output directory: {OUTPUT_DIR}")
+        print(f"  Output directory: {run_dir}")
 
         # Copy main output to expected location
         if args.output:
-            main_csv = OUTPUT_DIR / f"{base_name}_native.csv"
+            main_csv = run_dir / f"{base_name}_native.csv"
             if main_csv.exists():
                 shutil.copy(main_csv, args.output)
                 print(f"  Copied to: {args.output}")

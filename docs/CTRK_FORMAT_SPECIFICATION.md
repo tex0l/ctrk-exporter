@@ -26,7 +26,7 @@
 |----------|--------|
 | Fichier test | 20250729-170818.CTRK |
 | Points Native | 16462 |
-| Points Parser | 16474 (+12) |
+| Points Parser | 16475 (+13) |
 | Champs parfaits | 8/19 (42%) |
 | Champs mineurs | 8/19 |
 | Champs majeurs | 3/19 |
@@ -67,7 +67,7 @@
 
 ### Différence de nombre de points
 
-Le parser Python produit **12 points de plus** que la librairie native (16474 vs 16462).
+Le parser Python produit **13 points de plus** que la librairie native (16475 vs 16462).
 
 #### Source des timestamps : Découverte importante
 

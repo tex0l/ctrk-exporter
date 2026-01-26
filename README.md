@@ -176,6 +176,12 @@ ctrk-exporter/
 - **[CTRK Format Specification](docs/CTRK_FORMAT_SPECIFICATION.md)** - Complete binary file format
 - **[Native Library Analysis](docs/NATIVE_LIBRARY.md)** - Reverse engineering notes
 
+## Backstory
+
+I'm not a motorcyclist. A friend told me he had tried to extract data from his CTRK files without success. I said it would be easy with Claude. It became a matter of principle.
+
+The truth is: I burned through my entire Claude Max subscription on this, but I got it done in 48 hours.
+
 ## License
 
 MIT License
@@ -184,3 +190,4 @@ MIT License
 
 - File format reverse-engineered from the official Y-Trac application
 - Calibration formulas verified using radare2 disassembly of the native library
+- Built entirely with [Claude Code](https://claude.ai/code)

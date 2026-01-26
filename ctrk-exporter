@@ -237,6 +237,19 @@ def cmd_android_setup(args):
     return 0
 
 
+def cleanup_device_files(device_path, base_name):
+    """Remove temporary files from Android device after conversion."""
+    app_files_dir = "/storage/emulated/0/Android/data/com.ctrk.converter/files"
+    files_to_remove = [
+        device_path,                                    # Input CTRK file
+        "/sdcard/ui.xml",                               # UI dump
+        f"{app_files_dir}/{base_name}_native.csv",      # Output CSV
+        f"{app_files_dir}/{base_name}_native_raw.csv",  # Output raw CSV
+    ]
+    for f in files_to_remove:
+        run_cmd(f"adb shell rm -f '{f}'", check=False)
+
+
 def cmd_android_convert(args):
     """Convert a CTRK file using the Android app."""
     input_path = Path(args.input).resolve()
@@ -330,7 +343,7 @@ def cmd_android_convert(args):
 
         # Cleanup device
         print("\nStep 6: Cleanup")
-        run_cmd(f"adb shell rm '{device_path}'", check=False)
+        cleanup_device_files(device_path, base_name)
 
         print("\n=== Conversion Complete ===")
         return 0
@@ -351,7 +364,7 @@ def cmd_android_convert(args):
 
         # Cleanup device
         print("\nStep 6: Cleanup")
-        run_cmd(f"adb shell rm '{device_path}'", check=False)
+        cleanup_device_files(device_path, base_name)
 
         print("\n=== Conversion FAILED ===")
         return 1

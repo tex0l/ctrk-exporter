@@ -224,7 +224,7 @@ def cmd_android_setup(args):
     run_cmd(f"adb install -r '{apk_output}'", check=False)
 
     print("\n=== Setup Complete ===")
-    print("Run 'ctrk android convert <file.CTRK>' to convert a file")
+    print("Run './ctrk-exporter android convert <file.CTRK>' to convert a file")
     return 0
 
 
@@ -240,13 +240,19 @@ def cmd_android_convert(args):
     # Check device
     result = run_cmd("adb devices", capture=True, check=False)
     if "device" not in result.stdout or result.stdout.strip().endswith("devices"):
-        print("Error: No device connected. Run 'ctrk android setup' first.")
+        print("Error: No device/emulator connected.")
+        print()
+        print("Start an emulator:")
+        print("  $ emulator -list-avds")
+        print("  $ emulator -avd <avd_name> &")
+        print()
+        print("Then run './ctrk-exporter android setup' to install the app.")
         return 1
 
     # Check app is installed
     result = run_cmd("adb shell pm list packages | grep com.ctrk.converter", capture=True, check=False)
     if "com.ctrk.converter" not in result.stdout:
-        print("Error: App not installed. Run 'ctrk android setup' first.")
+        print("Error: App not installed. Run './ctrk-exporter android setup' first.")
         return 1
 
     # Push CTRK file to device

@@ -26,48 +26,55 @@
 |----------|--------|
 | Fichier test | 20250729-170818.CTRK |
 | Points Native | 16462 |
-| Points Parser | 16475 (+13) |
-| Champs parfaits | 8/19 (42%) |
-| Champs mineurs | 8/19 |
-| Champs majeurs | 3/19 |
+| Points Parser | 16475 (+13, ~0.08%) |
+| Champs parfaits | 2/24 |
+| Champs mineurs (>=95%) | 11/24 |
+| Champs majeurs (<95%) | 11/24 |
 
-### ✅ Champs vérifiés (100% match)
+> **Note:** La comparaison utilise un alignement par timestamp (±50ms) et des tolérances réalistes par champ.
 
-| Champ | Statut | Notes |
-|-------|--------|-------|
-| latitude | ✓ PARFAIT | GPS NMEA parsing correct |
-| longitude | ✓ PARFAIT | GPS NMEA parsing correct |
-| time_ms | ✓ PARFAIT | Timestamps GPS corrects |
-| throttle_grip (APS) | ✓ PARFAIT | CAN 0x0215 bytes 2-3 |
-| throttle (TPS) | ✓ PARFAIT | CAN 0x0215 bytes 0-1 |
-| rear_brake_bar | ✓ PARFAIT | CAN 0x0260 bytes 2-3 |
-| front_brake_bar | ✓ PARFAIT | CAN 0x0260 bytes 0-1 |
-| acc_y_g | ✓ PARFAIT | CAN 0x0250 bytes 2-3 |
+### ✅ Champs parfaits (100% match)
 
-### ⚡ Champs avec erreurs mineures (<3%)
+| Champ | Match | Notes |
+|-------|-------|-------|
+| rear_brake_bar | 100% | CAN 0x0260 bytes 2-3 |
+| launch | 100% | CAN 0x0215 byte 6 |
 
-| Champ | Match | Erreur moy | Cause probable |
-|-------|-------|------------|----------------|
-| acc_x_g | 99.9% | 1.4% | Timing CAN |
-| gear | 99.1% | 0.3% | Timing shifts |
-| water_temp | 99.9% | 0.2% | Premier sample |
-| intake_temp | 99.8% | 0.2% | Premier sample |
-| front_speed_kmh | 98.1% | 0.2% | Timing CAN |
-| rear_speed_kmh | 97.1% | 0.2% | Timing CAN |
-| fuel_cc | 96.1% | 0.5% | Timing accumulation |
-| gps_speed_kmh | 95.6% | 0.5% | Interpolation GPS |
+### ⚡ Champs avec erreurs mineures (>=95%)
 
-### ❌ Champs avec erreurs majeures
+| Champ | Match | Diff moy | Cause probable |
+|-------|-------|----------|----------------|
+| tcs | 99.9% | - | Timing CAN |
+| lif | 99.9% | - | Timing CAN |
+| gear | 99.6% | 0.004 | Timing shifts |
+| scs | 99.6% | - | Timing CAN |
+| intake_temp | 99.3% | 0.18°C | Timing CAN ~1Hz |
+| front_brake_bar | 99.3% | 0.03 bar | Timing CAN |
+| water_temp | 98.8% | 0.37°C | Timing CAN ~1Hz |
+| fuel_cc | 98.1% | 0.42 cc | Accumulation timing |
+| f_abs | 97.6% | - | Timing CAN |
+| r_abs | 97.6% | - | Timing CAN |
+| acc_x_g | 95.3% | 0.006 G | Timing CAN |
 
-| Champ | Match | Erreur moy | Cause |
-|-------|-------|------------|-------|
-| lean_deg | 53% | 50% | Formule complexe, décalage ±1° |
-| pitch_deg_s | 75% | 59% | Parser 1 sample en avance |
-| rpm | 90% | 0.8% | Timing shift ~1 sample |
+### ❌ Champs avec erreurs majeures (<95%)
+
+| Champ | Match | Diff moy | Cause |
+|-------|-------|----------|-------|
+| acc_y_g | 94.8% | 0.006 G | Timing CAN |
+| throttle_grip | 91.3% | 0.37% | Timing CAN |
+| lean_deg | 89.6% | 0.24° | Formule complexe, deadband |
+| throttle | 88.8% | 0.33% | Timing CAN |
+| front_speed_kmh | 88.8% | 0.23 km/h | Timing CAN |
+| rear_speed_kmh | 88.8% | 0.24 km/h | Timing CAN |
+| longitude | 84.3% | <0.00001° | Précision float32 vs float64 |
+| latitude | 82.4% | <0.00001° | Précision float32 vs float64 |
+| pitch_deg_s | 81.7% | 0.70°/s | Timing CAN |
+| gps_speed_kmh | 81.1% | 0.36 km/h | Interpolation GPS différente |
+| rpm | 75.8% | 49 RPM | Timing CAN |
 
 ### Différence de nombre de points
 
-Le parser Python produit **13 points de plus** que la librairie native (16475 vs 16462).
+Le parser Python produit **13 points de plus** (~0.08%) que la librairie native (16475 vs 16462).
 
 #### Source des timestamps : Découverte importante
 

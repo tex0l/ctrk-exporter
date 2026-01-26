@@ -86,12 +86,12 @@ def compute_lean_native(data: bytes) -> int:
 
 | Metric | Python Parser | Native | Difference |
 |--------|---------------|--------|------------|
-| Total points | 16475 | 16462 | +13 (0.08%) |
+| Total points | ~0.08% more | Reference | Minor |
 | RPM match | 100% | 100% | Exact |
-| LEAN upright | 9165 | 9156 | ~0.1% |
-| Timestamp intervals | 100% @ 100ms | 97.8% | Parser more regular |
+| LEAN angle | ~0.1% diff | Reference | Minor |
+| Timestamp intervals | 100% @ 100ms | ~98% | Parser more regular |
 
-The 13 extra points are due to undocumented GPS filtering in the native library.
+The Python parser produces slightly more points due to undocumented GPS filtering in the native library.
 
 ## Tools Used
 

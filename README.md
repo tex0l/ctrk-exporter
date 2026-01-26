@@ -50,12 +50,12 @@ Uses the official `libSensorsRecordIF.so` library from the Y-Trac Android app, r
 
 | Aspect | Python Parser | Native Converter |
 |--------|---------------|------------------|
-| Data points | 16475 | 16462 (-13, 0.08%) |
-| Timestamp intervals | 100% at 100ms | 97.8% at 100ms |
-| LEAN upright count | 9165 | 9156 (~0.1% diff) |
+| Data points | ~0.08% more | Reference |
+| Timestamp intervals | 100% at 100ms | ~98% at 100ms |
+| LEAN angle | ~0.1% difference | Reference |
 | Timestamp smoothing | None | ~10-15ms smoothing |
 
-The 13 extra points in the Python parser are valid GPS records that the native library filters out for undocumented reasons (likely interpolation logic).
+The Python parser produces slightly more data points because it includes valid GPS records that the native library filters out for undocumented reasons (likely interpolation logic).
 
 ## Installation
 

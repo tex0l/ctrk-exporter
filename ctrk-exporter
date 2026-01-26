@@ -301,13 +301,9 @@ def cmd_android_convert(args):
     print("\nStep 5: Retrieve output files")
     ensure_output_dir()
 
-    timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-    output_subdir = OUTPUT_DIR / f"android-{timestamp}"
-    output_subdir.mkdir(parents=True, exist_ok=True)
-
     base_name = input_path.stem
 
-    # Try multiple possible output locations
+    # Try multiple possible output locations on device
     device_locations = [
         f"/sdcard/Download/{base_name}_native.csv",
         f"/sdcard/Download/{base_name}_native_raw.csv",
@@ -317,17 +313,17 @@ def cmd_android_convert(args):
 
     found_files = []
     for loc in device_locations:
-        result = run_cmd(f"adb pull '{loc}' '{output_subdir}/'", check=False)
+        result = run_cmd(f"adb pull '{loc}' '{OUTPUT_DIR}/'", check=False)
         if result.returncode == 0:
             found_files.append(loc.split("/")[-1])
 
     if found_files:
         print(f"\n  Retrieved: {', '.join(found_files)}")
-        print(f"  Output directory: {output_subdir}")
+        print(f"  Output directory: {OUTPUT_DIR}")
 
         # Copy main output to expected location
         if args.output:
-            main_csv = output_subdir / f"{base_name}_native.csv"
+            main_csv = OUTPUT_DIR / f"{base_name}_native.csv"
             if main_csv.exists():
                 shutil.copy(main_csv, args.output)
                 print(f"  Copied to: {args.output}")

@@ -516,7 +516,7 @@ Raw sensor values must be converted to engineering units using these calibration
 | Wheel Speed | `(raw / 64.0) * 3.6` | km/h | ✓ | |
 | Throttle (APS/TPS) | `((raw / 8.192) * 100) / 84.96` | % | ✓ | |
 | Brake Pressure | `raw / 32.0` | bar | ✓ | |
-| Lean Angle | `(raw / 100.0) - 90.0` | degrees | ⚠️ | Nécessite deadband ±4° |
+| Lean Angle | `(raw / 100.0) - 90.0` | degrees | ⚠️ | Nécessite deadband ±5° |
 | Pitch Rate | `(raw / 100.0) - 300.0` | deg/s | ⚠️ | Timing shift |
 | Acceleration | `(raw / 1000.0) - 7.0` | G | ✓ | |
 | Temperature | `(raw / 1.6) - 30.0` | Celsius | ✓ | Single byte, pas 16-bit |
@@ -578,42 +578,42 @@ From sample file (9 laps):
 
 ### 11.1 CSV Export Format
 
-The recommended CSV export format includes all telemetry channels:
+The CSV export format includes all telemetry channels with calibrated values and descriptive column names:
 
 ```csv
-lap,time_ms,latitude,longitude,gps_speed_kmh,rpm,aps,tps,water_temp,intake_temp,front_speed,rear_speed,fuel,lean,pitch,acc_x,acc_y,front_brake,rear_brake,gear,f_abs,r_abs,tcs,scs,lif,launch
+lap,time_ms,latitude,longitude,gps_speed_kmh,rpm,throttle_grip,throttle,water_temp,intake_temp,front_speed_kmh,rear_speed_kmh,fuel_cc,lean_deg,pitch_deg_s,acc_x_g,acc_y_g,front_brake_bar,rear_brake_bar,gear,f_abs,r_abs,tcs,scs,lif,launch
 ```
 
 ### 11.2 Field Definitions
 
-| Field | Type | Description |
-|-------|------|-------------|
-| lap | int | Lap number (1-based) |
-| time_ms | int64 | Unix timestamp (milliseconds) |
-| latitude | float | GPS latitude (degrees) |
-| longitude | float | GPS longitude (degrees) |
-| gps_speed_kmh | float | GPS ground speed (km/h) |
-| rpm | int | Engine RPM (raw) |
-| aps | int | Accelerator position (raw) |
-| tps | int | Throttle position (raw) |
-| water_temp | int | Water temperature (raw) |
-| intake_temp | int | Intake air temperature (raw) |
-| front_speed | int | Front wheel speed (raw) |
-| rear_speed | int | Rear wheel speed (raw) |
-| fuel | int | Fuel flow (raw) |
-| lean | int | Lean angle (raw) |
-| pitch | int | Pitch rate (raw) |
-| acc_x | int | Longitudinal acceleration (raw) |
-| acc_y | int | Lateral acceleration (raw) |
-| front_brake | int | Front brake pressure (raw) |
-| rear_brake | int | Rear brake pressure (raw) |
-| gear | int | Current gear (0=N, 1-6) |
-| f_abs | bool | Front ABS active |
-| r_abs | bool | Rear ABS active |
-| tcs | int | Traction control level |
-| scs | int | Slide control level |
-| lif | int | Lift control level |
-| launch | int | Launch control active |
+| Field | Type | Unit | Description |
+|-------|------|------|-------------|
+| lap | int | - | Lap number (1-based) |
+| time_ms | int64 | ms | Unix timestamp (milliseconds) |
+| latitude | float | ° | GPS latitude (degrees) |
+| longitude | float | ° | GPS longitude (degrees) |
+| gps_speed_kmh | float | km/h | GPS ground speed |
+| rpm | int | RPM | Engine RPM (calibrated) |
+| throttle_grip | float | % | Accelerator position (APS, calibrated) |
+| throttle | float | % | Throttle valve position (TPS, calibrated) |
+| water_temp | float | °C | Water temperature (calibrated) |
+| intake_temp | float | °C | Intake air temperature (calibrated) |
+| front_speed_kmh | float | km/h | Front wheel speed (calibrated) |
+| rear_speed_kmh | float | km/h | Rear wheel speed (calibrated) |
+| fuel_cc | float | cc | Cumulative fuel consumption (calibrated) |
+| lean_deg | float | ° | Lean angle (calibrated) |
+| pitch_deg_s | float | °/s | Pitch rate (calibrated) |
+| acc_x_g | float | G | Lateral acceleration (calibrated) |
+| acc_y_g | float | G | Longitudinal acceleration (calibrated) |
+| front_brake_bar | float | bar | Front brake pressure (calibrated) |
+| rear_brake_bar | float | bar | Rear brake pressure (calibrated) |
+| gear | int | - | Current gear (0=N, 1-6) |
+| f_abs | bool | - | Front ABS active |
+| r_abs | bool | - | Rear ABS active |
+| tcs | int | - | Traction control active |
+| scs | int | - | Slide control active |
+| lif | int | - | Lift control active |
+| launch | int | - | Launch control active |
 
 ---
 

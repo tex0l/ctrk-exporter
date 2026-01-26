@@ -394,6 +394,70 @@ def cmd_android_clean(args):
     return 0
 
 
+def cmd_graph(args):
+    """Generate graphs from a parsed CSV file."""
+    input_path = Path(args.input).resolve()
+    if not input_path.exists():
+        print(f"Error: File not found: {input_path}")
+        return 1
+
+    # Check for required dependencies
+    try:
+        import pandas as pd
+        import matplotlib.pyplot as plt
+    except ImportError as e:
+        print(f"Error: Missing dependency: {e.name}")
+        print("Install with: pip install -r requirements.txt")
+        return 1
+
+    # Import visualization module
+    sys.path.insert(0, str(SRC_DIR))
+
+    print(f"=== Generating graphs from {input_path.name} ===\n")
+
+    # Determine output directory
+    if args.output:
+        output_dir = Path(args.output).resolve()
+    else:
+        output_dir = input_path.parent / "graphs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load data
+    from visualize_all_channels import load_data, create_all_channels_graph
+
+    df = load_data(input_path)
+    laps = sorted(df['lap'].unique())
+    print(f"Loaded {len(df)} points, {len(laps)} laps")
+
+    # Generate graphs
+    if args.lap:
+        if args.lap == "all":
+            # Generate one file per lap
+            for lap in laps:
+                output_path = output_dir / f"lap{lap}.png"
+                print(f"Generating lap {lap}...")
+                create_all_channels_graph(df, output_path, lap=lap)
+            print(f"\nGenerated {len(laps)} graphs in {output_dir}")
+        else:
+            # Single lap
+            lap = int(args.lap)
+            if lap not in laps:
+                print(f"Error: Lap {lap} not found. Available laps: {laps}")
+                return 1
+            output_path = output_dir / f"lap{lap}.png"
+            create_all_channels_graph(df, output_path, lap=lap)
+            print(f"Generated: {output_path}")
+    else:
+        # Default: generate all laps
+        for lap in laps:
+            output_path = output_dir / f"lap{lap}.png"
+            print(f"Generating lap {lap}...")
+            create_all_channels_graph(df, output_path, lap=lap)
+        print(f"\nGenerated {len(laps)} graphs in {output_dir}")
+
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="ctrk-exporter",
@@ -404,6 +468,9 @@ Examples:
   ctrk-exporter parse session.CTRK                    # Parse to output/session_parsed.csv
   ctrk-exporter parse session.CTRK -o result.csv      # Parse to specific file
   ctrk-exporter parse session.CTRK --raw              # Also export raw values
+
+  ctrk-exporter graph output/session_parsed.csv       # Generate graphs for all laps
+  ctrk-exporter graph output/session_parsed.csv -l 3  # Generate graph for lap 3 only
 
   ctrk-exporter android setup                         # Setup Android converter app
   ctrk-exporter android convert session.CTRK          # Convert using native library
@@ -419,6 +486,12 @@ Examples:
     parse_parser.add_argument("-o", "--output", help="Output CSV file (default: output/<name>_parsed.csv)")
     parse_parser.add_argument("--raw", action="store_true", help="Also export raw uncalibrated values")
 
+    # Graph command
+    graph_parser = subparsers.add_parser("graph", help="Generate graphs from parsed CSV")
+    graph_parser.add_argument("input", help="Input CSV file (from parse command)")
+    graph_parser.add_argument("-o", "--output", help="Output directory (default: <input_dir>/graphs)")
+    graph_parser.add_argument("-l", "--lap", help="Lap number to graph, or 'all' for each lap separately")
+
     # Android commands
     android_parser = subparsers.add_parser("android", help="Android converter app commands")
     android_sub = android_parser.add_subparsers(dest="android_cmd", help="Android command")
@@ -433,6 +506,8 @@ Examples:
 
     if args.command == "parse":
         return cmd_parse(args)
+    elif args.command == "graph":
+        return cmd_graph(args)
     elif args.command == "android":
         if args.android_cmd == "setup":
             return cmd_android_setup(args)

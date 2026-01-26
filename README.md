@@ -42,6 +42,19 @@ pip install -r requirements.txt
 ./ctrk-exporter parse session.CTRK --raw
 ```
 
+### Generate graphs
+
+```bash
+# Generate graphs for all laps (requires pandas, matplotlib, numpy)
+./ctrk-exporter graph output/session_parsed.csv
+
+# Generate graph for a specific lap
+./ctrk-exporter graph output/session_parsed.csv -l 3
+
+# Specify output directory
+./ctrk-exporter graph output/session_parsed.csv -o ~/graphs
+```
+
 ### Android converter (uses official native library)
 
 The Android converter uses the official `libSensorsRecordIF.so` native library from Y-Trac for 100% accurate parsing.

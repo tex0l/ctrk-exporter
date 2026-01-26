@@ -62,9 +62,9 @@ The Android converter uses the official `libSensorsRecordIF.so` native library f
 
 #### Android Setup Details
 
-1. **Download Y-Trac APK** from [APKPure](https://apkpure.com/y-trac/com.yamaha.jp.dataviewer)
-2. Save it to `apk_analysis/ytrac.apk`
-3. Run `./ctrk-exporter android setup` - this will:
+1. Run `./ctrk-exporter android setup`
+2. The CLI will prompt you to download the APK automatically or manually
+3. After obtaining the APK, the setup will:
    - Extract the native library from the APK
    - Inject it into the Android app
    - Build the converter app

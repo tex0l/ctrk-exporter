@@ -11,16 +11,18 @@ from the official Y-Trac APK for use with the CTRK Converter app.
 
 ## Quick Setup
 
-Run the setup script to download the APK and extract the native library:
+Use the main CLI tool which handles everything:
 
 ```bash
-./setup_native_lib.sh
+./ctrk-exporter android setup
 ```
 
-This will:
-1. Download the Y-Trac APK from APKPure (or use a local copy)
-2. Extract `libSensorsRecordIF.so` for arm64-v8a
-3. Copy it to the Android app's jniLibs directory
+The CLI will prompt you to download the APK automatically (at your own risk) or manually.
+
+Once you have the APK, it will:
+1. Extract `libSensorsRecordIF.so` for all architectures
+2. Copy them to the Android app's jniLibs directory
+3. Build and install the converter app
 
 ## Manual Steps
 

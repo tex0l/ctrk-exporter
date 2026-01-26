@@ -21,7 +21,7 @@ A reverse-engineered pure Python implementation with no external dependencies.
 - Fast and lightweight
 
 **Cons:**
-- ~0.08% difference in data points vs native (13 extra GPS points out of 16475)
+- ~0.08% more data points than native
 - Minor timestamp smoothing differences (~10-15ms)
 
 ```bash

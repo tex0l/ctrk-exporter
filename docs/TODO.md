@@ -1,33 +1,29 @@
 # TODO
 
-## Parser / Spec Discrepancies
+## Optional: Native-Compatible Interpolation Mode
 
-### Timestamp Source (Section 6)
-**Issue:** The spec says timestamps use milliseconds from the file structure (2 bytes before GPRMC), but the parser uses milliseconds from the GPRMC sentence itself (e.g., `"144110.300"` → 300ms).
+Implement optional timestamp smoothing and CAN interpolation to produce output closer to the native library:
 
-**Files:**
-- `docs/CTRK_FORMAT_SPECIFICATION.md` Section 6
-- `src/ctrk_parser.py` lines 660-691 (`_compute_timestamp`)
+```bash
+./ctrk-exporter parse session.CTRK --interpolate-native
+```
 
-**Action:** Verify which source the native library uses, then align spec and parser.
+This would reduce the ~0.1% record count difference and improve per-sample matching rates.
 
----
-
-### Year Encoding (Section 4.2)
-**Issue:** The spec says `07 E9 = year 2025 encoded as little-endian (0xE907 = 2025)` but this is incorrect. `0x07E9 = 2025` in big-endian, not little-endian.
-
-**Files:**
-- `docs/CTRK_FORMAT_SPECIFICATION.md` Section 4.2
-
-**Action:** Correct the endianness description.
+**Priority:** Low (current output is functionally equivalent)
 
 ---
 
-### CAN Record Data Offset (Section 8.1)
-**Issue:** The spec says CAN data starts at offset 7 (after 2-byte Flags at offset 5), but the parser reads data at offset 8 (`self.data[pos+8:pos+16]`).
+## Optional: Lap Detection
 
-**Files:**
-- `docs/CTRK_FORMAT_SPECIFICATION.md` Section 8.1
-- `src/ctrk_parser.py` line 588
+Parse lap timing data from CTRK files. The native library exposes `GetTotalLap()` and `GetLapTimeRecordData()` but the lap storage format is not yet documented.
 
-**Action:** Hex dump a CAN record to verify the exact structure and offsets.
+**Priority:** Low
+
+---
+
+## Optional: Split/Recovery Functions
+
+Implement equivalents of native `SplitLogFile()` and `DamageRecoveryLogFile()` functions.
+
+**Priority:** Low

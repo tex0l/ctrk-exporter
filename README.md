@@ -81,7 +81,10 @@ pip install -r requirements.txt
 
 ### Generate Graphs
 
+Requires venv activation:
+
 ```bash
+source .venv/bin/activate
 ./ctrk-exporter graph output/<timestamp>/session_parsed.csv       # All laps
 ./ctrk-exporter graph output/<timestamp>/session_parsed.csv -l 3  # Lap 3 only
 ```

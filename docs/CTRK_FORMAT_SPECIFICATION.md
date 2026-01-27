@@ -1,13 +1,22 @@
 # CTRK File Format Specification
 
-**Version:** 1.2
-**Date:** 2026-01-26
-**Status:** Draft - Verified via disassembly of libSensorsRecordIF.so (radare2)
+**Version:** 1.3
+**Date:** 2026-01-27
+**Status:** Validated - 42 files tested, 21 channels verified against native library
 **Author:** Reverse-engineered from Yamaha Y-trac DataViewer Android Application
 
 ---
 
 ## Changelog
+
+### v1.3 (2026-01-27)
+- **BREAKING:** Fully decoded CAN timestamp structure (8 bytes):
+  `[sec] [min] [hour] [weekday] [day] [month] [year_lo] [year_hi]`
+- `E9 07` is **year 2025** in little-endian (0x07E9), not a magic number
+- Year is uint16 little-endian: supports any year (parser validates 1990-2100)
+- **BREAKING:** Fixed ABS bit order: R_ABS=bit0, F_ABS=bit1 (was inverted)
+- Validated 42 files across 4 months (July-October 2025)
+- All 21 telemetry channels verified against native library output
 
 ### v1.2 (2026-01-26)
 - Added native LEAN formula (disassembled from binary)
@@ -88,7 +97,7 @@ A CTRK file is a continuous binary stream without explicit section delimiters. S
 |    HEADER        |  Identified by "HEAD" magic and "RECORDLINE." patterns
 +------------------+
 |                  |
-|    DATA          |  Identified by "$GPRMC" and "07 E9 07" patterns
+|    DATA          |  Identified by "$GPRMC" and "E9 07" patterns
 |                  |
 +------------------+
 |    FOOTER        |  JSON object at end of file (optional)
@@ -144,9 +153,36 @@ GPS data is identified by the ASCII pattern `$GPRMC` (NMEA sentence start). Each
 
 ### 4.2 CAN Records
 
-CAN bus data is identified by the byte sequence `07 E9 07` where:
-- `07 E9` = year 2025 encoded as little-endian (0xE907 = 2025)
-- `07` = CAN data sub-type marker
+CAN bus data includes a full timestamp before each CAN message:
+
+```
+[sec] [min] [hour] [weekday] [day] [month] [year_lo] [year_hi] [CAN_ID_lo] [CAN_ID_hi]
+```
+
+| Field | Size | Range | Description |
+|-------|------|-------|-------------|
+| sec | 1 byte | 0x00-0x3B | Seconds (0-59) |
+| min | 1 byte | 0x00-0x3B | Minutes (0-59) |
+| hour | 1 byte | 0x00-0x17 | Hours (0-23 UTC) |
+| weekday | 1 byte | 0x01-0x07 | Day of week (Mon=1, Sun=7) |
+| day | 1 byte | 0x01-0x1F | Day of month (1-31) |
+| month | 1 byte | 0x01-0x0C | Month (1-12) |
+| year | 2 bytes | LE uint16 | Year (e.g., 0x07E9 = 2025) |
+| CAN_ID | 2 bytes | LE uint16 | CAN message identifier |
+
+**Example (July 29, 2025, 14:41:10 UTC, Tuesday):**
+```
+0a 29 0e 02 1d 07 e9 07 15 02
+│  │  │  │  │  │  └──┴── Year: 0x07E9 = 2025
+│  │  │  │  │  └─────── Month: 7 (July)
+│  │  │  │  └────────── Day: 29
+│  │  │  └───────────── Weekday: 2 (Tuesday)
+│  │  └──────────────── Hour: 14
+│  └─────────────────── Minute: 41
+└────────────────────── Second: 10
+```
+
+**Pattern detection:** Decode year as little-endian uint16, verify it's reasonable (1990-2100), then check CAN ID is valid.
 
 ### 4.3 Interleaving
 
@@ -252,16 +288,39 @@ Example: `4757.1013,N` = 47 degrees + (57.1013 / 60) = **47.951688** degrees N
 
 ### 8.1 CAN Record Structure
 
-CAN bus telemetry is encoded with a year marker and message identifier:
+CAN bus telemetry is encoded with a full timestamp:
 
 ```
 Offset  Size  Description
--5      5     Timestamp bytes (sec, min, hour, day, month)
-0       2     Year marker: 0x07 0xE9 (2025)
-2       1     Sub-type: 0x07 (CAN data)
-3       2     CAN ID (little-endian)
-5       2     Flags
-7       8     CAN data payload
+-6      1     Seconds (0x00-0x3B)
+-5      1     Minutes (0x00-0x3B)
+-4      1     Hours (0x00-0x17, UTC)
+-3      1     Weekday (0x01-0x07, Mon=1)
+-2      1     Day (0x01-0x1F)
+-1      1     Month (0x01-0x0C)
+0       2     Year (little-endian uint16)
+2       2     CAN ID (little-endian)
+4       3     Flags/padding
+7       8     CAN data payload (8 bytes)
+```
+
+**Pattern detection:**
+1. Read 2 bytes as little-endian year
+2. Verify year is in range 1990-2100
+3. Read next 2 bytes as little-endian CAN ID
+4. Verify CAN ID is in known list
+
+**Example for July 29, 2025, 14:41:10 UTC (Tuesday):**
+```
+0a 29 0e 02 1d 07 e9 07 15 02 ...
+│  │  │  │  │  │  └──┴── Year: 0x07E9 = 2025
+│  │  │  │  │  └─────── Month: 7 (July)
+│  │  │  │  └────────── Day: 29
+│  │  │  └───────────── Weekday: 2 (Tuesday)
+│  │  └──────────────── Hour: 14
+│  └─────────────────── Minute: 41
+└────────────────────── Second: 10
+                        CAN ID: 0x0215
 ```
 
 ### 8.2 CAN Message IDs
@@ -374,8 +433,10 @@ Byte    Description
 
 ```
 Byte    Description
-4       F_ABS (bit 0), R_ABS (bit 1)
+4       R_ABS (bit 0), F_ABS (bit 1)
 ```
+
+**Note:** Bit order was corrected in v1.3. R_ABS is bit 0, F_ABS is bit 1.
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Version:** 1.2
 **Date:** 2026-01-26
-**Status:** En cours - Vérifié par désassemblage de libSensorsRecordIF.so (radare2)
+**Status:** Draft - Verified via disassembly of libSensorsRecordIF.so (radare2)
 **Author:** Reverse-engineered from Yamaha Y-trac DataViewer Android Application
 
 ---
@@ -10,114 +10,27 @@
 ## Changelog
 
 ### v1.2 (2026-01-26)
-- Ajout de la formule LEAN native exacte (désassemblée)
-- Confirmation des mappings CAN par analyse radare2 du binaire x86_64
-- Documentation du deadband LEAN (±5°)
-- Clarification de l'ordre TPS/APS
-- Lien vers `libSensorsRecordIF_howitworks.md` pour les détails techniques
+- Added native LEAN formula (disassembled from binary)
+- Confirmed CAN mappings via radare2 analysis of x86_64 binary
+- Documented LEAN deadband behavior (±5°)
+- Clarified TPS/APS byte order
+- Added reference to `libSensorsRecordIF_howitworks.md` for technical details
+
+### v1.1 (2026-01-25)
+- Added CAN message decoding for all telemetry channels
+- Documented calibration factors for all sensor types
+- Added lap detection via RECORDLINE crossing
+- Corrected temperature encoding (single byte, not 16-bit)
+- Added fuel accumulator reset behavior at lap boundaries
+
+### v1.0 (2026-01-24)
+- Initial specification based on file structure analysis
+- Documented header format with magic signature and track coordinates
+- Documented GPS NMEA sentence parsing (GPRMC)
+- Identified CAN message structure and year marker pattern
+- Documented JSON footer metadata format
 
 ---
-
-## ⚠️ État de vérification (Parser vs Native Library)
-
-### Résumé des tests
-
-| Métrique | Valeur |
-|----------|--------|
-| Fichier test | 20250729-170818.CTRK |
-| Points Native | 16462 |
-| Points Parser | 16475 (+13, ~0.08%) |
-| Champs parfaits | 2/24 |
-| Champs mineurs (>=95%) | 11/24 |
-| Champs majeurs (<95%) | 11/24 |
-
-> **Note:** La comparaison utilise un alignement par timestamp (±50ms) et des tolérances réalistes par champ.
-
-### ✅ Champs parfaits (100% match)
-
-| Champ | Match | Notes |
-|-------|-------|-------|
-| rear_brake_bar | 100% | CAN 0x0260 bytes 2-3 |
-| launch | 100% | CAN 0x0215 byte 6 |
-
-### ⚡ Champs avec erreurs mineures (>=95%)
-
-| Champ | Match | Diff moy | Cause probable |
-|-------|-------|----------|----------------|
-| tcs | 99.9% | - | Timing CAN |
-| lif | 99.9% | - | Timing CAN |
-| gear | 99.6% | 0.004 | Timing shifts |
-| scs | 99.6% | - | Timing CAN |
-| intake_temp | 99.3% | 0.18°C | Timing CAN ~1Hz |
-| front_brake_bar | 99.3% | 0.03 bar | Timing CAN |
-| water_temp | 98.8% | 0.37°C | Timing CAN ~1Hz |
-| fuel_cc | 98.1% | 0.42 cc | Accumulation timing |
-| f_abs | 97.6% | - | Timing CAN |
-| r_abs | 97.6% | - | Timing CAN |
-| acc_x_g | 95.3% | 0.006 G | Timing CAN |
-
-### ❌ Champs avec erreurs majeures (<95%)
-
-| Champ | Match | Diff moy | Cause |
-|-------|-------|----------|-------|
-| acc_y_g | 94.8% | 0.006 G | Timing CAN |
-| throttle_grip | 91.3% | 0.37% | Timing CAN |
-| lean_deg | 89.6% | 0.24° | Formule complexe, deadband |
-| throttle | 88.8% | 0.33% | Timing CAN |
-| front_speed_kmh | 88.8% | 0.23 km/h | Timing CAN |
-| rear_speed_kmh | 88.8% | 0.24 km/h | Timing CAN |
-| longitude | 84.3% | <0.00001° | Précision float32 vs float64 |
-| latitude | 82.4% | <0.00001° | Précision float32 vs float64 |
-| pitch_deg_s | 81.7% | 0.70°/s | Timing CAN |
-| gps_speed_kmh | 81.1% | 0.36 km/h | Interpolation GPS différente |
-| rpm | 75.8% | 49 RPM | Timing CAN |
-
-### Différence de nombre de points
-
-Le parser Python produit **13 points de plus** (~0.08%) que la librairie native (16475 vs 16462).
-
-#### Source des timestamps : Découverte importante
-
-Les millisecondes **ne viennent pas du GPRMC** mais d'un champ de 2 bytes stocké dans le fichier :
-
-```
-Structure avant chaque GPRMC (15 bytes) :
-[...] [ms_lo] [ms_hi] [0a/0b] [sec] [min] [hour] [0x02] [day] [07] [e9] [07] $GPRMC,...
-       ^-----------^   ^-----------------------------------------^   ^---------^
-       Millisecondes   Structure timestamp (5 bytes)                 CAN marker
-       (little-endian)
-```
-
-**Exemple concret :**
-```
-Bytes -15 à -1 avant $GPRMC: 00 02 00 56 00 | ca 00 | 0a | 29 0e 02 1d | 07 e9 07
-                                              ^^^^^^
-                                              0x00CA = 202 ms
-```
-
-#### Comparaison File vs Native vs GPRMC
-
-| Row | GPRMC ms | File ms | Native ms | Écart |
-|-----|----------|---------|-----------|-------|
-| 1 | 300 | 202 | 202 | 0 |
-| 2 | 400 | 304 | 304 | 0 |
-| 3 | 500 | 402 | 412 | +10 |
-| 4 | 600 | 502 | 512 | +10 |
-| 5 | 700 | 604 | 612 | +8 |
-
-**Conclusion :**
-- Les millisecondes dans le fichier représentent l'horloge **interne du CCU**
-- Le CCU est en avance d'environ ~98ms sur le GPS
-- La librairie native applique un **lissage** pour régulariser les intervalles à ~100ms
-
-#### Structure CAN (pas de millisecondes)
-
-Les messages CAN ont un timestamp de 5 bytes sans millisecondes :
-```
-[second] [minute] [hour] [0x02] [day]
-```
-
-> **Note:** Les CAN sont associés aux GPS par position dans le fichier, pas par timestamp précis.
 
 ## Abstract
 
@@ -129,15 +42,14 @@ This document specifies the CTRK file format used by the Yamaha Y-trac CCU (Comm
 2. [File Structure Overview](#2-file-structure-overview)
 3. [Header Section](#3-header-section)
 4. [Data Section](#4-data-section)
-5. [Footer Section (JSON Metadata)](#5-footer-section)
-6. [Data Record Format](#6-data-record-format)
+5. [Footer Section](#5-footer-section)
+6. [Timestamp Format](#6-timestamp-format)
 7. [GPS NMEA Records](#7-gps-nmea-records)
 8. [CAN Bus Message Format](#8-can-bus-message-format)
 9. [Calibration Factors](#9-calibration-factors)
 10. [Lap Detection](#10-lap-detection)
 11. [Sample Output Format](#11-sample-output-format)
-12. [Security Considerations](#12-security-considerations)
-13. [References](#13-references)
+12. [References](#12-references)
 
 ---
 
@@ -151,7 +63,6 @@ The CTRK file format is a proprietary binary format used by the Yamaha Y-trac mo
 
 This specification covers:
 - CTRK file structure (`.CTRK` extension)
-- CCT file structure (`.CCT` extension) - similar format
 - Data record formats
 - Calibration factors for raw sensor values
 
@@ -170,31 +81,27 @@ This specification covers:
 
 ## 2. File Structure Overview
 
-A CTRK file consists of three main sections:
+A CTRK file is a continuous binary stream without explicit section delimiters. Sections are identified by pattern matching:
 
 ```
 +------------------+
-|    HEADER        |  (~1000 bytes)
+|    HEADER        |  Identified by "HEAD" magic and "RECORDLINE." patterns
 +------------------+
 |                  |
-|    DATA          |  (variable, bulk of file)
+|    DATA          |  Identified by "$GPRMC" and "07 E9 07" patterns
 |                  |
 +------------------+
-|    FOOTER        |  (~500 bytes, JSON)
+|    FOOTER        |  JSON object at end of file (optional)
 +------------------+
 ```
 
-### 2.1 File Extensions
-
-| Extension | Description |
-|-----------|-------------|
-| `.CTRK` | Standard telemetry recording |
-| `.CCT` | Compressed/alternate format |
-| `.TRG` | Trigger-based recording |
+There are no length fields or explicit markers separating these sections. Parsers must scan for known byte patterns to locate data.
 
 ---
 
 ## 3. Header Section
+
+The header section has no fixed size. It is identified by the presence of specific ASCII patterns embedded in the binary data.
 
 ### 3.1 Magic Signature
 
@@ -207,13 +114,14 @@ Offset  Size  Description
 
 ### 3.2 Track Line Coordinates
 
-The header contains track start/finish line coordinates encoded as double-precision floats:
+Track start/finish line coordinates are stored as ASCII key-value pairs followed by binary double-precision floats. The parser locates these by searching for the ASCII patterns:
 
 ```
-RECORDLINE.P1.LAT(<8 bytes double, little-endian>)
-RECORDLINE.P1.LNG(<8 bytes double, little-endian>)
-RECORDLINE.P2.LAT(<8 bytes double, little-endian>)
-RECORDLINE.P2.LNG(<8 bytes double, little-endian>)
+Pattern                              Followed by
+"RECORDLINE.P1.LAT("                 8 bytes double (little-endian)
+"RECORDLINE.P1.LNG("                 8 bytes double (little-endian)
+"RECORDLINE.P2.LAT("                 8 bytes double (little-endian)
+"RECORDLINE.P2.LNG("                 8 bytes double (little-endian)
 ```
 
 **Example values (from sample file):**
@@ -222,17 +130,27 @@ RECORDLINE.P2.LNG(<8 bytes double, little-endian>)
 - End Latitude: 47.949876
 - End Longitude: 0.207953
 
-These coordinates define a virtual line used for lap timing detection.
+These coordinates define a virtual line used for lap timing detection. The patterns are typically found within the first 500 bytes of the file.
 
 ---
 
 ## 4. Data Section
 
-The data section contains interleaved records of two types:
-1. GPS NMEA sentences (ASCII)
-2. CAN bus telemetry records (binary)
+The data section contains interleaved records of two types, identified by pattern matching:
 
-Records are stored sequentially at approximately 10 Hz sampling rate (100ms intervals).
+### 4.1 GPS Records
+
+GPS data is identified by the ASCII pattern `$GPRMC` (NMEA sentence start). Each GPS record is preceded by a timestamp structure (see Section 7).
+
+### 4.2 CAN Records
+
+CAN bus data is identified by the byte sequence `07 E9 07` where:
+- `07 E9` = year 2025 encoded as little-endian (0xE907 = 2025)
+- `07` = CAN data sub-type marker
+
+### 4.3 Interleaving
+
+GPS and CAN records are interleaved at approximately 10 Hz (100ms intervals). Multiple CAN messages typically appear between consecutive GPS records. The parser scans the file sequentially, associating CAN values with the next GPS timestamp.
 
 ---
 
@@ -240,80 +158,58 @@ Records are stored sequentially at approximately 10 Hz sampling rate (100ms inte
 
 ### 5.1 JSON Metadata
 
-The file ends with a JSON object containing session metadata:
+The file ends with a JSON object at the very end of the file (0 bytes from EOF). Some binary bytes of unknown purpose appear between the last data record and the JSON.
+
+**Footer from sample file (370 bytes):**
 
 ```json
 {
   "Attribute": [
-    {"Key": "FormatVersion", "Value": "2"},
+    {"Key": "FormatVersion", "Value": "1.0"},
+    {"Key": "Weather", "Value": "1"},
     {"Key": "Date", "Value": "2025-07-29 15:08:18"},
+    {"Key": "Tire", "Value": ""},
+    {"Key": "SSID", "Value": "YAMAHA MOTOR CCU D0142A"},
+    {"Key": "LapCount", "Value": ""},
+    {"Key": "CircuitName", "Value": ""},
     {"Key": "Name", "Value": "20250729-170818"},
     {"Key": "User", "Value": "R122"},
-    {"Key": "SSID", "Value": ""},
-    {"Key": "Weather", "Value": "sunny"}
+    {"Key": "Temperature", "Value": ""}
   ]
 }
 ```
 
 ### 5.2 Metadata Fields
 
-| Key | Type | Description |
-|-----|------|-------------|
-| FormatVersion | String | File format version (typically "2") |
-| Date | String | Recording date/time (YYYY-MM-DD HH:MM:SS) |
-| Name | String | Session name (typically filename) |
-| User | String | User/rider identifier |
-| SSID | String | WiFi SSID (if connected) |
-| Weather | String | Weather condition |
+| Key | Value in sample | Description |
+|-----|-----------------|-------------|
+| FormatVersion | "1.0" | File format version |
+| Weather | "1" | Weather condition code |
+| Date | "2025-07-29 15:08:18" | Recording start date/time |
+| Tire | "" | Tire information |
+| SSID | "YAMAHA MOTOR CCU D0142A" | CCU WiFi network name |
+| LapCount | "" | Lap count |
+| CircuitName | "" | Track/circuit name |
+| Name | "20250729-170818" | Session name |
+| User | "R122" | User/rider identifier |
+| Temperature | "" | Ambient temperature |
 
 ---
 
-## 6. Data Record Format
+## 6. Timestamp Format
 
-### 6.1 Timestamp Structure
-
-Each telemetry sample is associated with a Unix timestamp in milliseconds:
+Each GPS record is preceded by a timestamp structure containing milliseconds from the CCU internal clock:
 
 ```
 Field       Type      Description
-time_ms     int64     Unix timestamp in milliseconds (since 1970-01-01)
+time_ms     uint16    Milliseconds (little-endian, 2 bytes before GPRMC)
 ```
+
+The full Unix timestamp is reconstructed by combining:
+- Date and time from the GPRMC sentence (seconds precision)
+- Milliseconds from the file structure (2 bytes before each GPRMC)
 
 **Example:** `1753792870202` = July 29, 2025 at 17:01:10.202 UTC
-
-### 6.2 Sensor Record Structure
-
-The native library populates the following data structure for each sample:
-
-```c
-struct SensorsRecord {
-    int64_t  mTime;        // Unix timestamp (milliseconds)
-    float    mLat;         // Latitude (degrees, WGS84)
-    float    mLon;         // Longitude (degrees, WGS84)
-    float    mGpsSpeedKnot;// GPS ground speed (knots)
-    uint16_t mRPM;         // Engine RPM (raw)
-    int16_t  mAPS;         // Accelerator Position Sensor (raw)
-    int16_t  mTPS;         // Throttle Position Sensor (raw)
-    int16_t  mWT;          // Water temperature (raw)
-    int16_t  mINTT;        // Intake air temperature (raw)
-    int16_t  mFSPEED;      // Front wheel speed (raw)
-    int16_t  mRSPEED;      // Rear wheel speed (raw)
-    int32_t  mFUEL;        // Fuel consumption (raw)
-    uint16_t mLEAN;        // Lean angle (raw)
-    uint16_t mPITCH;       // Pitch rate (raw)
-    int16_t  mACCX;        // Longitudinal acceleration (raw)
-    int16_t  mACCY;        // Lateral acceleration (raw)
-    int16_t  mFPRESS;      // Front brake pressure (raw)
-    int16_t  mRPRESS;      // Rear brake pressure (raw)
-    int8_t   mGEAR;        // Current gear (0-6, 0=neutral)
-    bool     mFABS;        // Front ABS active
-    bool     mRABS;        // Rear ABS active
-    int8_t   mLAUNCH;      // Launch control active
-    int8_t   mSCS;         // Slide Control System active
-    int8_t   mTCS;         // Traction Control System active
-    int8_t   mLIF;         // Lift control active
-};
-```
 
 ---
 
@@ -370,142 +266,115 @@ Offset  Size  Description
 
 ### 8.2 CAN Message IDs
 
-| CAN ID | Name | Description | Vérifié |
-|--------|------|-------------|---------|
-| 0x0209 | Engine | RPM, Gear position | ✓ |
-| 0x0215 | Throttle | APS, TPS, TCS, SCS, LIF, Launch | ✓ |
-| 0x023E | Temperature 2 | Water temp, Intake temp, Fuel delta | ✓ |
-| 0x0250 | Motion | ACC_X, ACC_Y (PAS lean/pitch!) | ✓ |
-| 0x0258 | IMU | LEAN (formule complexe), PITCH | ⚠️ Partiellement |
-| 0x0260 | Brake | Front/Rear brake pressure | ✓ |
-| 0x0264 | Speed | Front/Rear wheel speed | ✓ |
-| 0x0268 | ABS Status | ABS activation F/R | ✓ |
-| 0x0226 | Raw CAN 1 | Non utilisé | |
-| 0x0227 | Temperature | Non utilisé (remplacé par 0x023E) | |
-| 0x0257 | ABS 1 | Non utilisé | |
-| 0x0267 | ABS 2 | Non utilisé | |
-| 0x0511 | Raw CAN 2 | Non utilisé | |
-| 0x051B | Raw CAN 3 | Non utilisé | |
+| CAN ID | Name | Description |
+|--------|------|-------------|
+| 0x0209 | Engine | RPM, Gear position |
+| 0x0215 | Throttle | APS, TPS, TCS, SCS, LIF, Launch |
+| 0x0226 | Raw CAN 1 | Unknown |
+| 0x0227 | Temperature | Unknown (replaced by 0x023E?) |
+| 0x023E | Temperature 2 | Water temp, Intake temp, Fuel delta |
+| 0x0250 | Motion | ACC_X, ACC_Y |
+| 0x0257 | ABS 1 | Unknown |
+| 0x0258 | IMU | LEAN, PITCH |
+| 0x0260 | Brake | Front/Rear brake pressure |
+| 0x0264 | Speed | Front/Rear wheel speed |
+| 0x0267 | ABS 2 | Unknown |
+| 0x0268 | ABS Status | ABS activation F/R |
+| 0x0511 | Raw CAN 2 | Unknown |
+| 0x051B | Raw CAN 3 | Unknown |
 
-### 8.3 CAN Message Decoding (Vérifié par reverse engineering)
+### 8.3 CAN Message Decoding
 
-> **Note:** Les bytes sont numérotés 0-7. Format big-endian sauf indication contraire.
+> **Note:** Bytes are numbered 0-7. All multi-byte values are big-endian unless otherwise specified.
 
-#### 8.3.1 Engine (0x0209) ✓ Vérifié
-
-```
-Byte    Description
-0-1     RPM (big-endian, raw) → diviser par 2.56
-4       Gear (bits 0-2, valeur 7 = ignoré/neutre)
-```
-
-#### 8.3.2 Throttle (0x0215) ✓ Vérifié
+#### 8.3.1 Engine (0x0209)
 
 ```
 Byte    Description
-0-1     TPS - Throttle Position Sensor (big-endian, raw)
-2-3     APS - Accelerator Position Sensor (big-endian, raw)
-6       Launch control (bits 5-6)
+0-1     RPM (uint16)
+4       Gear (bits 0-2, value 7 = neutral)
+```
+
+#### 8.3.2 Throttle (0x0215)
+
+```
+Byte    Description
+0-1     TPS (uint16)
+2-3     APS (uint16)
+6       Launch (bits 5-6)
 7       TCS (bit 5), SCS (bit 4), LIF (bit 3)
 ```
 
-> **Attention:** TPS et APS sont inversés par rapport à la doc originale !
-
-#### 8.3.3 Temperature (0x023E) ✓ Vérifié
+#### 8.3.3 Temperature (0x023E)
 
 ```
 Byte    Description
-0       Water temperature (single byte, raw)
-1       Intake temperature (single byte, raw)
-2-3     Fuel delta (big-endian, cumulatif)
+0       Water temperature (uint8)
+1       Intake temperature (uint8)
+2-3     Fuel delta (uint16, cumulative)
 ```
 
-> **Fréquence:** ~1 Hz (1 message pour 10 GPS samples)
+Update frequency: ~1 Hz (1 message per 10 GPS samples).
 
-#### 8.3.4 Motion/Accélération (0x0250) ✓ Vérifié
-
-```
-Byte    Description
-0-1     ACC_X - Accélération longitudinale (big-endian, raw)
-2-3     ACC_Y - Accélération latérale (big-endian, raw)
-```
-
-> **Important:** Ce CAN contient ACC_X/ACC_Y, PAS lean/pitch !
-
-#### 8.3.5 IMU - Lean/Pitch (0x0258) ✓ Vérifié par désassemblage
+#### 8.3.4 Acceleration (0x0250)
 
 ```
 Byte    Description
-0-3     LEAN - Formule complexe (voir ci-dessous)
-6-7     PITCH (big-endian, raw)
+0-1     ACC_X (uint16)
+2-3     ACC_Y (uint16)
 ```
 
-**Formule LEAN (confirmée par désassemblage de AnalisysCAN @ 0x0000e1bc):**
+#### 8.3.5 IMU (0x0258)
+
+```
+Byte    Description
+0-3     LEAN (packed format, see below)
+6-7     PITCH (uint16)
+```
+
+**LEAN decoding:**
 
 ```python
-def compute_lean_native(data: bytes) -> int:
-    """
-    Calcule la valeur LEAN exactement comme la bibliothèque native.
-    Source: désassemblage radare2 de libSensorsRecordIF.so (x86_64)
-
-    Args:
-        data: 8 bytes du message CAN 0x0258
-
-    Returns:
-        lean_raw: Valeur brute (9000 = upright, calibrer avec (raw/100) - 90)
-    """
+def decode_lean(data: bytes) -> int:
     b0, b1, b2, b3 = data[0], data[1], data[2], data[3]
-
-    # Step 1: Extract values from packed bytes
     val1_part = (b0 << 4) | (b2 & 0x0f)
     val1 = val1_part << 8
     val2 = ((b1 & 0x0f) << 4) | (b3 >> 4)
-
-    # Step 2: Compute sum
     sum_val = (val1 + val2) & 0xFFFF
 
-    # Step 3: Transform to deviation from center (9000)
     if sum_val < 9000:
         deviation = 9000 - sum_val
     else:
         deviation = (sum_val - 9000) & 0xFFFF
 
-    # Step 4: Deadband - if within ±5° (~499 raw), return upright
-    if deviation <= 499:
-        return 9000  # Upright (0° after calibration)
+    if deviation <= 499:  # Deadband: ±5°
+        return 9000
 
-    # Step 5: For larger deviations, round to nearest degree
     deviation_rounded = deviation - (deviation % 100)
-    result = 9000 + deviation_rounded
-
-    return result & 0xFFFF
+    return (9000 + deviation_rounded) & 0xFFFF
 ```
 
-**Note:** Cette formule produit toujours une valeur ≥ 9000 ou exactement 9000 pour le deadband.
-La librairie native semble stocker l'amplitude de l'inclinaison, pas la direction signée.
-Voir `docs/libSensorsRecordIF_howitworks.md` pour le désassemblage complet.
-
-#### 8.3.6 Wheel Speed (0x0264) ✓ Vérifié
+#### 8.3.6 Speed (0x0264)
 
 ```
 Byte    Description
-0-1     Front wheel speed (big-endian, raw)
-2-3     Rear wheel speed (big-endian, raw)
+0-1     Front wheel speed (uint16)
+2-3     Rear wheel speed (uint16)
 ```
 
-#### 8.3.7 Brake Pressure (0x0260) ✓ Vérifié
-
-```
-Byte    Description
-0-1     Front brake pressure (big-endian, raw)
-2-3     Rear brake pressure (big-endian, raw)
-```
-
-#### 8.3.8 ABS Status (0x0268) ✓ Vérifié
+#### 8.3.7 Brake (0x0260)
 
 ```
 Byte    Description
-4       F-ABS (bit 0), R-ABS (bit 1)
+0-1     Front brake pressure (uint16)
+2-3     Rear brake pressure (uint16)
+```
+
+#### 8.3.8 ABS Status (0x0268)
+
+```
+Byte    Description
+4       F_ABS (bit 0), R_ABS (bit 1)
 ```
 
 ---
@@ -516,18 +385,18 @@ Raw sensor values must be converted to engineering units using these calibration
 
 ### 9.1 Calibration Table
 
-| Parameter | Formula | Unit | Vérifié | Notes |
-|-----------|---------|------|---------|-------|
-| GPS Speed | `raw_knots * 1.852` | km/h | ✓ | |
-| Engine RPM | `raw / 2.56` | RPM | ✓ | |
-| Wheel Speed | `(raw / 64.0) * 3.6` | km/h | ✓ | |
-| Throttle (APS/TPS) | `((raw / 8.192) * 100) / 84.96` | % | ✓ | |
-| Brake Pressure | `raw / 32.0` | bar | ✓ | |
-| Lean Angle | `(raw / 100.0) - 90.0` | degrees | ⚠️ | Nécessite deadband ±5° |
-| Pitch Rate | `(raw / 100.0) - 300.0` | deg/s | ⚠️ | Timing shift |
-| Acceleration | `(raw / 1000.0) - 7.0` | G | ✓ | |
-| Temperature | `(raw / 1.6) - 30.0` | Celsius | ✓ | Single byte, pas 16-bit |
-| Fuel | `raw / 100.0` | cc | ✓ | Cumulatif (delta additionné) |
+| Parameter | Formula | Unit | Notes |
+|-----------|---------|------|-------|
+| GPS Speed | `raw_knots * 1.852` | km/h | |
+| Engine RPM | `raw / 2.56` | RPM | |
+| Wheel Speed | `(raw / 64.0) * 3.6` | km/h | |
+| Throttle (APS/TPS) | `((raw / 8.192) * 100) / 84.96` | % | |
+| Brake Pressure | `raw / 32.0` | bar | |
+| Lean Angle | `(raw / 100.0) - 90.0` | degrees | Requires ±5° deadband |
+| Pitch Rate | `(raw / 100.0) - 300.0` | deg/s | |
+| Acceleration | `(raw / 1000.0) - 7.0` | G | |
+| Temperature | `(raw / 1.6) - 30.0` | Celsius | Single byte, not 16-bit |
+| Fuel | `raw / 100.0` | cc | Cumulative (delta summed) |
 
 ### 9.2 Raw Value Examples
 
@@ -624,45 +493,9 @@ lap,time_ms,latitude,longitude,gps_speed_kmh,rpm,throttle_grip,throttle,water_te
 
 ---
 
-## 12. Security Considerations
+## 12. References
 
-### 12.1 File Validation
+1. [Yamaha Y-Trac Product Page](https://www.yamaha-motor.eu/fr/fr/y-trac/)
+2. [NMEA 0183 Standard](https://www.nmea.org/content/STANDARDS/NMEA_0183_Standard)
+3. [CAN Bus Specification (ISO 11898)](https://www.iso.org/standard/63648.html)
 
-Implementations MUST validate:
-1. File begins with "HEAD" magic bytes
-2. File size is reasonable (typically < 100 MB)
-3. GPS coordinates are within valid ranges (-90 to 90 lat, -180 to 180 lon)
-4. Timestamps are within reasonable bounds
-
-### 12.2 Privacy
-
-CTRK files contain precise GPS location data. Care should be taken when sharing files to avoid revealing home locations or other private information.
-
----
-
-## 13. References
-
-1. Yamaha Y-trac DataViewer Android Application (version 2.x)
-2. NMEA 0183 Standard for Interfacing Marine Electronic Devices
-3. CAN Bus Specification (ISO 11898)
-
----
-
-## Appendix A: Complete Sample Record
-
-```
-Lap: 1
-Timestamp: 1753792870304 (2025-07-29 17:01:10.304 UTC)
-GPS: 47.951694, 0.207152 @ 7.96 km/h
-Engine: 8291 raw (3238 RPM), Gear 1
-Throttle: APS=154 (18.8%), TPS=73 (8.9%)
-Wheel Speed: Front=162 (2.5 km/h), Rear=156 (2.4 km/h)
-IMU: Lean=9000 (0 deg), Pitch=29904 (-0.96 deg/s)
-Acceleration: X=7260 (0.26G), Y=7017 (0.02G)
-Brakes: Front=4 (0.125 bar), Rear=0
-Systems: F-ABS=off, R-ABS=off, TCS=0, SCS=0, LIF=0, Launch=0
-```
-
----
-
-*End of Specification*

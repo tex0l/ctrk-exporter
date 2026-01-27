@@ -38,6 +38,40 @@ The `libSensorsRecordIF.so` library is the core component of the Y-Trac Android 
 - `com.yamaha.jp.dataviewer.SensorsRecordLine` - Finish line structure
 - `com.yamaha.jp.dataviewer.jni.JNISupport` - Library loader
 
+## Output Data Structure
+
+The native library populates the following data structure for each telemetry sample:
+
+```c
+struct SensorsRecord {
+    int64_t  mTime;        // Unix timestamp (milliseconds)
+    float    mLat;         // Latitude (degrees, WGS84)
+    float    mLon;         // Longitude (degrees, WGS84)
+    float    mGpsSpeedKnot;// GPS ground speed (knots)
+    uint16_t mRPM;         // Engine RPM (raw)
+    int16_t  mAPS;         // Accelerator Position Sensor (raw)
+    int16_t  mTPS;         // Throttle Position Sensor (raw)
+    int16_t  mWT;          // Water temperature (raw)
+    int16_t  mINTT;        // Intake air temperature (raw)
+    int16_t  mFSPEED;      // Front wheel speed (raw)
+    int16_t  mRSPEED;      // Rear wheel speed (raw)
+    int32_t  mFUEL;        // Fuel consumption (raw)
+    uint16_t mLEAN;        // Lean angle (raw)
+    uint16_t mPITCH;       // Pitch rate (raw)
+    int16_t  mACCX;        // Longitudinal acceleration (raw)
+    int16_t  mACCY;        // Lateral acceleration (raw)
+    int16_t  mFPRESS;      // Front brake pressure (raw)
+    int16_t  mRPRESS;      // Rear brake pressure (raw)
+    int8_t   mGEAR;        // Current gear (0-6, 0=neutral)
+    bool     mFABS;        // Front ABS active
+    bool     mRABS;        // Rear ABS active
+    int8_t   mLAUNCH;      // Launch control active
+    int8_t   mSCS;         // Slide Control System active
+    int8_t   mTCS;         // Traction Control System active
+    int8_t   mLIF;         // Lift control active
+};
+```
+
 ## CAN Message Parsing
 
 All CAN formulas have been verified by disassembly:

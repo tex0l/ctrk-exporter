@@ -267,9 +267,9 @@ def parse_can_0x0264(data: bytes, state: dict):
 
 
 def parse_can_0x0268(data: bytes, state: dict):
-    """ABS status (verified @ 0x0000e2b7)"""
-    state['f_abs'] = bool(data[4] & 1)
-    state['r_abs'] = bool((data[4] >> 1) & 1)
+    """ABS status (verified @ 0x0000e2b7) - R_ABS=bit0, F_ABS=bit1"""
+    state['r_abs'] = bool(data[4] & 1)
+    state['f_abs'] = bool((data[4] >> 1) & 1)
 
 
 CAN_HANDLERS = {
@@ -576,16 +576,16 @@ class CTRKParser:
                 pos = end + 1
                 continue
 
-            # Look for CAN message: 07 E9 07 [CAN_ID 2 bytes]
-            if (self.data[pos] == 0x07 and
-                self.data[pos+1] == 0xE9 and
-                self.data[pos+2] == 0x07 and
-                pos + 16 <= len(self.data)):
+            # CAN message timestamp structure:
+            # [sec] [min] [hour] [weekday] [day] [month] [year_lo] [year_hi] [CAN_ID_lo] [CAN_ID_hi]
+            # Year is 2 bytes little-endian (supports any year)
+            if pos + 15 <= len(self.data):
+                year = struct.unpack('<H', self.data[pos:pos+2])[0]
+                can_id = struct.unpack('<H', self.data[pos+2:pos+4])[0]
 
-                can_id = struct.unpack('<H', self.data[pos+3:pos+5])[0]
-
-                if can_id in VALID_CAN_IDS:
-                    can_data = self.data[pos+8:pos+16]
+                # Check year is reasonable (1990-2100) and CAN ID is valid
+                if 1990 <= year <= 2100 and can_id in VALID_CAN_IDS:
+                    can_data = self.data[pos+7:pos+15]
 
                     if len(can_data) >= 8:
                         # Process CAN message
@@ -600,7 +600,7 @@ class CTRKParser:
 
                         can_count += 1
 
-                    pos += 16
+                    pos += 15
                     continue
 
             pos += 1

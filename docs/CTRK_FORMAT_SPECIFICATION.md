@@ -292,7 +292,7 @@ Offset  Size  Description
 ```
 Byte    Description
 0-1     RPM (uint16)
-4       Gear (bits 0-2, value 7 = neutral)
+4       Gear (bits 0-2, value 7 = invalid)
 ```
 
 #### 8.3.2 Throttle (0x0215)
@@ -423,16 +423,7 @@ From sample file (second record):
 
 Laps are detected when the motorcycle crosses the virtual start/finish line defined by coordinates P1 and P2 in the header.
 
-### 10.2 Lap Time Record Structure
-
-```c
-struct SensorsLapTimeRecord {
-    int64_t mTime;        // Lap time in milliseconds
-    int64_t mSplitTime;   // Split time (if applicable)
-};
-```
-
-### 10.3 Sample Lap Times
+### 10.2 Sample Lap Times
 
 From sample file (9 laps):
 
@@ -479,8 +470,8 @@ lap,time_ms,latitude,longitude,gps_speed_kmh,rpm,throttle_grip,throttle,water_te
 | fuel_cc | float | cc | Cumulative fuel consumption (calibrated) |
 | lean_deg | float | ° | Lean angle (calibrated) |
 | pitch_deg_s | float | °/s | Pitch rate (calibrated) |
-| acc_x_g | float | G | Lateral acceleration (calibrated) |
-| acc_y_g | float | G | Longitudinal acceleration (calibrated) |
+| acc_x_g | float | G | Longitudinal acceleration (calibrated) |
+| acc_y_g | float | G | Lateral acceleration (calibrated) |
 | front_brake_bar | float | bar | Front brake pressure (calibrated) |
 | rear_brake_bar | float | bar | Rear brake pressure (calibrated) |
 | gear | int | - | Current gear (0=N, 1-6) |

@@ -2,7 +2,7 @@
 """
 CTRK File Parser
 
-Pure Python parser for Yamaha Y-Trac CTRK/CCT telemetry files.
+Pure Python parser for Yamaha Y-Trac CTRK telemetry files.
 Based on reverse engineering of the native library (radare2 disassembly).
 All CAN message parsing formulas verified against native library output.
 

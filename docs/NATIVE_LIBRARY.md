@@ -72,6 +72,15 @@ struct SensorsRecord {
 };
 ```
 
+The native library also provides lap timing data:
+
+```c
+struct SensorsLapTimeRecord {
+    int64_t mTime;        // Lap time in milliseconds
+    int64_t mSplitTime;   // Split time (if applicable)
+};
+```
+
 ## CAN Message Parsing
 
 All CAN formulas have been verified by disassembly:

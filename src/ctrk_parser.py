@@ -283,6 +283,21 @@ CAN_HANDLERS = {
     # 0x023E handled separately due to fuel accumulator
 }
 
+# CAN Data Length Codes (verified from binary analysis)
+CAN_DLC = {
+    0x0209: 6,
+    0x0215: 8,
+    0x023E: 4,
+    0x0250: 8,
+    0x0258: 8,
+    0x0260: 8,
+    0x0264: 4,
+    0x0268: 6,
+    0x0226: 7,
+    0x0227: 3,
+    0x0511: 8,
+}
+
 
 # =============================================================================
 # DATA STRUCTURES
@@ -368,6 +383,7 @@ class CTRKParser:
         self._current_lap = 1
         self._prev_lat = 0.0
         self._prev_lng = 0.0
+        self._next_gps_timestamp_ms = 0  # From CAN 0x0511 GPS sync marker
 
     def parse(self) -> List[TelemetryRecord]:
         """Parse the CTRK file."""
@@ -431,7 +447,7 @@ class CTRKParser:
         can_count = 0
         is_first_gprmc = True
 
-        VALID_CAN_IDS = set(CAN_HANDLERS.keys()) | {0x023E}
+        VALID_CAN_IDS = set(CAN_DLC.keys())
 
         while pos < len(self.data) - 20:
             # Look for GPS NMEA sentence
@@ -514,30 +530,44 @@ class CTRKParser:
                 pos = end + 1
                 continue
 
-            # CAN message timestamp structure:
-            # [sec] [min] [hour] [weekday] [day] [month] [year_lo] [year_hi] [CAN_ID_lo] [CAN_ID_hi]
-            # Year is 2 bytes little-endian (supports any year)
-            if pos + 15 <= len(self.data):
+            # CAN record structure (from year position):
+            # [year_lo][year_hi][canid_lo][canid_hi][0x00][0x00][DLC][data_0..data_{DLC-1}]
+            # Preceded by 8-byte timestamp prefix: [millis_lo][millis_hi][sec][min][hour][weekday][day][month]
+            if pos + 7 <= len(self.data):
                 year = struct.unpack('<H', self.data[pos:pos+2])[0]
                 can_id = struct.unpack('<H', self.data[pos+2:pos+4])[0]
 
-                # Check year is reasonable (1990-2100) and CAN ID is valid
                 if 1990 <= year <= 2100 and can_id in VALID_CAN_IDS:
-                    can_data = self.data[pos+7:pos+15]
+                    dlc = CAN_DLC[can_id]
 
-                    if len(can_data) >= 8:
-                        # Process CAN message - update state for NEXT GPS record
-                        # Native library behavior: CAN state at GPS time is captured,
-                        # not updated retroactively. CAN messages affect next record.
-                        if can_id == 0x023E:
+                    if pos + 7 + dlc <= len(self.data):
+                        can_data = self.data[pos+7:pos+7+dlc]
+
+                        # CAN 0x0511 is a GPS sync marker that appears before each GPRMC.
+                        # Its millis matches the native library's timestamp exactly.
+                        if can_id == 0x0511 and pos >= 8:
+                            can_millis = self.data[pos - 8] | (self.data[pos - 7] << 8)
+                            ts_sec = self.data[pos - 6]
+                            ts_min = self.data[pos - 5]
+                            ts_hour = self.data[pos - 4]
+                            ts_day = self.data[pos - 2]
+                            ts_month = self.data[pos - 1]
+                            if (0 <= can_millis <= 999 and 0 <= ts_sec <= 59 and
+                                    0 <= ts_min <= 59 and 0 <= ts_hour <= 23 and
+                                    1 <= ts_day <= 31 and 1 <= ts_month <= 12):
+                                try:
+                                    dt = datetime(year, ts_month, ts_day, ts_hour, ts_min, ts_sec)
+                                    self._next_gps_timestamp_ms = int(dt.timestamp() * 1000) + can_millis
+                                except (ValueError, OSError):
+                                    pass
+                        elif can_id == 0x023E:
                             parse_can_0x023e(can_data, self._state, self._fuel_accumulator)
                         elif can_id in CAN_HANDLERS:
                             CAN_HANDLERS[can_id](can_data, self._state)
 
                         can_count += 1
-
-                    pos += 15
-                    continue
+                        pos += 7 + dlc
+                        continue
 
             pos += 1
 
@@ -593,14 +623,17 @@ class CTRKParser:
             # Speed
             speed_knots = float(parts[7]) if parts[7] else 0.0
 
-            # Extract timestamp from binary structure (file_millis + internal time)
-            timestamp_ms = self._compute_timestamp_from_binary(binary_pos)
-
-            # Fallback to GPRMC if binary extraction fails
-            if timestamp_ms == 0:
-                date_str = parts[9] if len(parts) > 9 else ""
-                time_str = parts[1]
-                timestamp_ms = self._compute_timestamp_from_gprmc(time_str, date_str)
+            # Use 0x0511 GPS sync marker timestamp if available (matches native)
+            if self._next_gps_timestamp_ms > 0:
+                timestamp_ms = self._next_gps_timestamp_ms
+                self._next_gps_timestamp_ms = 0
+            else:
+                # Fallback: extract from binary prefix
+                timestamp_ms = self._compute_timestamp_from_binary(binary_pos)
+                if timestamp_ms == 0:
+                    date_str = parts[9] if len(parts) > 9 else ""
+                    time_str = parts[1]
+                    timestamp_ms = self._compute_timestamp_from_gprmc(time_str, date_str)
 
             return {
                 'time_ms': timestamp_ms,
@@ -659,10 +692,6 @@ class CTRKParser:
             # Build timestamp
             dt = datetime(ts_year, ts_month, ts_day, ts_hour, ts_min, ts_sec)
             timestamp_ms = int(dt.timestamp() * 1000) + file_millis
-
-            # Native applies a small offset (~10ms) to file_millis
-            # This appears to account for GPS sentence parsing delay
-            timestamp_ms -= 10
 
             return timestamp_ms
 

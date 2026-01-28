@@ -423,103 +423,15 @@ class CTRKParser:
 
         return False
 
-    def _create_initial_record(self) -> Optional[TelemetryRecord]:
-        """Create an initial zero-row like the native library.
-
-        The native library creates a first row with:
-        - Timestamp from file structure (offset -10 before first GPRMC)
-        - GPS data from first GPRMC
-        - All CAN values = 0
-        """
-        # Find first GPRMC
-        pos = self.data.find(b'$GPRMC')
-        if pos == -1 or pos < 12:
-            return None
-
-        # Extract file milliseconds from structure
-        file_millis = self.data[pos - 10] | (self.data[pos - 9] << 8)
-
-        # Parse the first GPRMC
-        end = self.data.find(b'\r\n', pos)
-        if end == -1:
-            end = self.data.find(b'\n', pos)
-        if end == -1:
-            return None
-
-        sentence = self.data[pos:end].decode('ascii', errors='ignore')
-        parts = sentence.split(',')
-        if len(parts) < 10 or parts[2] != 'A':
-            return None
-
-        try:
-            time_str = parts[1]
-            date_str = parts[9] if len(parts) > 9 else ""
-
-            hours = int(time_str[0:2])
-            minutes = int(time_str[2:4])
-            seconds = int(time_str[4:6])
-
-            if len(date_str) >= 6:
-                day = int(date_str[0:2])
-                month = int(date_str[2:4])
-                year = 2000 + int(date_str[4:6])
-            else:
-                return None
-
-            dt = datetime(year, month, day, hours, minutes, seconds)
-            timestamp_ms = int(dt.timestamp()) * 1000 + file_millis
-
-            # Parse GPS coordinates
-            lat_str = parts[3]
-            lat_deg = float(lat_str[:2])
-            lat_min = float(lat_str[2:])
-            latitude = lat_deg + lat_min / 60.0
-            if parts[4] == 'S':
-                latitude = -latitude
-
-            lon_str = parts[5]
-            lon_deg = float(lon_str[:3])
-            lon_min = float(lon_str[3:])
-            longitude = lon_deg + lon_min / 60.0
-            if parts[6] == 'W':
-                longitude = -longitude
-
-            speed_knots = float(parts[7]) if parts[7] else 0.0
-
-            # Create initial record with all CAN values = 0
-            return TelemetryRecord(
-                lap=1,
-                time_ms=timestamp_ms,
-                latitude=latitude,
-                longitude=longitude,
-                gps_speed_knots=speed_knots,
-                # All CAN values explicitly set to 0
-                rpm=0, gear=0, aps=0, tps=0,
-                water_temp=0, intake_temp=0,
-                front_speed=0, rear_speed=0,
-                fuel=0, lean=0, pitch=0,
-                acc_x=0, acc_y=0,
-                front_brake=0, rear_brake=0,
-                f_abs=False, r_abs=False,
-                tcs=0, scs=0, lif=0, launch=0,
-            )
-        except (ValueError, IndexError):
-            return None
-
     def _parse_data_section(self):
         """Parse the interleaved GPS and CAN data."""
         pos = 0
         current_record = None
         gps_count = 0
         can_count = 0
+        is_first_gprmc = True
 
         VALID_CAN_IDS = set(CAN_HANDLERS.keys()) | {0x023E}
-
-        # Add initial empty row like native library
-        # Native creates a zero-row with GPS data but all CAN values = 0
-        initial_record = self._create_initial_record()
-        if initial_record:
-            self.records.append(initial_record)
 
         while pos < len(self.data) - 20:
             # Look for GPS NMEA sentence
@@ -532,7 +444,33 @@ class CTRKParser:
                     continue
 
                 sentence = self.data[pos:end].decode('ascii', errors='ignore')
-                gps_data = self._parse_gprmc(sentence)
+                # Pass binary position to extract file_millis for precise timestamp
+                gps_data = self._parse_gprmc_with_file_millis(sentence, pos)
+
+                # Create initial zero-row for first valid GPRMC (like native)
+                if gps_data and is_first_gprmc:
+                    is_first_gprmc = False
+                    # Native creates a zero-row with GPS position but all CAN values = 0
+                    initial_record = TelemetryRecord(
+                        lap=1,
+                        time_ms=gps_data['time_ms'],
+                        latitude=gps_data['latitude'],
+                        longitude=gps_data['longitude'],
+                        gps_speed_knots=gps_data['speed_knots'],
+                        # All CAN values explicitly set to 0/default
+                        rpm=0, gear=0, aps=0, tps=0,
+                        water_temp=0, intake_temp=0,
+                        front_speed=0, rear_speed=0,
+                        fuel=0, lean=0, pitch=0,
+                        acc_x=0, acc_y=0,
+                        front_brake=0, rear_brake=0,
+                        f_abs=False, r_abs=False,
+                        tcs=0, scs=0, lif=0, launch=0,
+                    )
+                    self.records.append(initial_record)
+                    gps_count += 1
+                    pos = end + 1
+                    continue  # Skip creating current_record for first GPRMC
 
                 if gps_data:
                     # Save previous record
@@ -588,15 +526,13 @@ class CTRKParser:
                     can_data = self.data[pos+7:pos+15]
 
                     if len(can_data) >= 8:
-                        # Process CAN message
+                        # Process CAN message - update state for NEXT GPS record
+                        # Native library behavior: CAN state at GPS time is captured,
+                        # not updated retroactively. CAN messages affect next record.
                         if can_id == 0x023E:
                             parse_can_0x023e(can_data, self._state, self._fuel_accumulator)
                         elif can_id in CAN_HANDLERS:
                             CAN_HANDLERS[can_id](can_data, self._state)
-
-                        # Apply to current record
-                        if current_record:
-                            self._apply_state_to_record(current_record)
 
                         can_count += 1
 
@@ -613,15 +549,30 @@ class CTRKParser:
         print(f"  Built {len(self.records)} telemetry records")
         print(f"  Detected {self._current_lap} laps")
 
-    def _parse_gprmc(self, sentence: str) -> Optional[dict]:
-        """Parse NMEA GPRMC sentence."""
+    def _parse_gprmc_with_file_millis(self, sentence: str, binary_pos: int) -> Optional[dict]:
+        """Parse NMEA GPRMC sentence using file_millis for precise timestamp.
+
+        The native library uses the internal acquisition timestamp (file_millis)
+        stored at offset -10/-9 before each GPRMC, which has ~1ms precision.
+        This is more accurate than GPRMC time which is rounded to 100ms by GPS firmware.
+
+        Binary structure before GPRMC:
+            offset -10: file_millis_lo (LSB)
+            offset -9:  file_millis_hi (MSB)
+            offset -8:  seconds
+            offset -7:  minutes
+            offset -6:  hours
+            offset -5:  weekday
+            offset -4:  day
+            offset -3:  month
+            offset -2:  year_lo
+            offset -1:  year_hi
+            offset 0:   '$GPRMC,...'
+        """
         try:
             parts = sentence.split(',')
             if len(parts) < 10 or parts[2] != 'A':
                 return None
-
-            # Time
-            time_str = parts[1]
 
             # Latitude
             lat_str = parts[3]
@@ -642,11 +593,14 @@ class CTRKParser:
             # Speed
             speed_knots = float(parts[7]) if parts[7] else 0.0
 
-            # Date
-            date_str = parts[9] if len(parts) > 9 else ""
+            # Extract timestamp from binary structure (file_millis + internal time)
+            timestamp_ms = self._compute_timestamp_from_binary(binary_pos)
 
-            # Compute timestamp from GPRMC time string
-            timestamp_ms = self._compute_timestamp(time_str, date_str)
+            # Fallback to GPRMC if binary extraction fails
+            if timestamp_ms == 0:
+                date_str = parts[9] if len(parts) > 9 else ""
+                time_str = parts[1]
+                timestamp_ms = self._compute_timestamp_from_gprmc(time_str, date_str)
 
             return {
                 'time_ms': timestamp_ms,
@@ -657,11 +611,69 @@ class CTRKParser:
         except (ValueError, IndexError):
             return None
 
-    def _compute_timestamp(self, time_str: str, date_str: str) -> int:
-        """Compute Unix timestamp in milliseconds from GPRMC time string.
+    def _compute_timestamp_from_binary(self, gprmc_pos: int) -> int:
+        """Compute Unix timestamp using file_millis and internal time structure.
 
-        Uses the milliseconds from the GPRMC time string (e.g., "144110.300" -> 300ms).
-        This avoids synchronization issues with file structure milliseconds.
+        This matches the native library behavior which uses the acquisition
+        timestamp rather than the GPS timestamp.
+
+        Args:
+            gprmc_pos: Position of '$GPRMC' in the binary data
+
+        Returns:
+            Unix timestamp in milliseconds, or 0 if extraction fails
+        """
+        try:
+            # Need at least 10 bytes before GPRMC for the timestamp structure
+            if gprmc_pos < 10:
+                return 0
+
+            # Extract file_millis (2 bytes little-endian at offset -10/-9)
+            file_millis = self.data[gprmc_pos - 10] | (self.data[gprmc_pos - 9] << 8)
+
+            # Extract time components from internal structure
+            ts_sec = self.data[gprmc_pos - 8]
+            ts_min = self.data[gprmc_pos - 7]
+            ts_hour = self.data[gprmc_pos - 6]
+            # offset -5 is weekday (not needed)
+            ts_day = self.data[gprmc_pos - 4]
+            ts_month = self.data[gprmc_pos - 3]
+            ts_year = self.data[gprmc_pos - 2] | (self.data[gprmc_pos - 1] << 8)
+
+            # Validate values
+            if not (1990 <= ts_year <= 2100):
+                return 0
+            if not (1 <= ts_month <= 12):
+                return 0
+            if not (1 <= ts_day <= 31):
+                return 0
+            if not (0 <= ts_hour <= 23):
+                return 0
+            if not (0 <= ts_min <= 59):
+                return 0
+            if not (0 <= ts_sec <= 59):
+                return 0
+            if not (0 <= file_millis <= 999):
+                return 0
+
+            # Build timestamp
+            dt = datetime(ts_year, ts_month, ts_day, ts_hour, ts_min, ts_sec)
+            timestamp_ms = int(dt.timestamp() * 1000) + file_millis
+
+            # Native applies a small offset (~10ms) to file_millis
+            # This appears to account for GPS sentence parsing delay
+            timestamp_ms -= 10
+
+            return timestamp_ms
+
+        except (IndexError, ValueError, OSError):
+            return 0
+
+    def _compute_timestamp_from_gprmc(self, time_str: str, date_str: str) -> int:
+        """Fallback: Compute Unix timestamp from GPRMC time string.
+
+        Note: GPRMC timestamps are rounded to 100ms by GPS firmware,
+        so this is less accurate than file_millis.
         """
         try:
             hours = int(time_str[0:2])
@@ -671,7 +683,6 @@ class CTRKParser:
             # Parse milliseconds from GPRMC time string (e.g., ".300" -> 300)
             if len(time_str) > 6 and time_str[6] == '.':
                 ms_str = time_str[7:]
-                # Pad or truncate to 3 digits
                 ms_str = (ms_str + '000')[:3]
                 millis = int(ms_str)
             else:
@@ -689,30 +700,6 @@ class CTRKParser:
             return int(dt.timestamp()) * 1000 + millis
         except (ValueError, IndexError):
             return 0
-
-    def _apply_state_to_record(self, record: TelemetryRecord):
-        """Apply current CAN state to a telemetry record."""
-        record.rpm = self._state['rpm']
-        record.gear = self._state['gear']
-        record.aps = self._state['aps']
-        record.tps = self._state['tps']
-        record.water_temp = self._state['water_temp']
-        record.intake_temp = self._state['intake_temp']
-        record.front_speed = self._state['front_speed']
-        record.rear_speed = self._state['rear_speed']
-        record.front_brake = self._state['front_brake']
-        record.rear_brake = self._state['rear_brake']
-        record.acc_x = self._state['acc_x']
-        record.acc_y = self._state['acc_y']
-        record.lean = self._state['lean']
-        record.pitch = self._state['pitch']
-        record.f_abs = self._state['f_abs']
-        record.r_abs = self._state['r_abs']
-        record.tcs = self._state['tcs']
-        record.scs = self._state['scs']
-        record.lif = self._state['lif']
-        record.launch = self._state['launch']
-        record.fuel = self._state['fuel']
 
     def export_csv(self, output_path: str):
         """Export records to CSV matching native library format."""

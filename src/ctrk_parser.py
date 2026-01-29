@@ -383,7 +383,6 @@ class CTRKParser:
         self._current_lap = 1
         self._prev_lat = 0.0
         self._prev_lng = 0.0
-        self._next_gps_timestamp_ms = 0  # From CAN 0x0511 GPS sync marker
 
     def parse(self) -> List[TelemetryRecord]:
         """Parse the CTRK file."""
@@ -439,296 +438,291 @@ class CTRKParser:
 
         return False
 
-    def _parse_data_section(self):
-        """Parse the interleaved GPS and CAN data."""
-        pos = 0
-        current_record = None
-        gps_count = 0
-        can_count = 0
-        is_first_gprmc = True
+    def _find_data_start(self) -> int:
+        """Find where the structured data section begins.
 
-        VALID_CAN_IDS = set(CAN_DLC.keys())
+        The file header structure:
+          - 0x00-0x03: "HEAD" magic
+          - 0x04-0x33: fixed header fields (52 bytes total with magic)
+          - 0x34+: variable-length header entries (RECORDLINE coords, CCU_VERSION)
+          - Data records start immediately after the last header entry
+        """
+        off = 0x34
+        while off < min(len(self.data), 500):
+            if off + 4 > len(self.data):
+                break
+            entry_size = struct.unpack_from('<I', self.data, off)[0]
+            if entry_size < 5 or entry_size > 200:
+                break
+            name_len = self.data[off + 4]
+            if name_len < 1 or name_len > entry_size - 5:
+                break
+            off += entry_size
+        return off
 
-        while pos < len(self.data) - 20:
-            # Look for GPS NMEA sentence
-            if self.data[pos:pos+6] == b'$GPRMC':
-                end = self.data.find(b'\r\n', pos)
-                if end == -1:
-                    end = self.data.find(b'\n', pos)
-                if end == -1:
-                    pos += 1
-                    continue
+    def _get_time_data(self, ts_bytes: bytes) -> int:
+        """Convert 10-byte timestamp structure to epoch milliseconds.
 
-                sentence = self.data[pos:end].decode('ascii', errors='ignore')
-                # Pass binary position to extract file_millis for precise timestamp
-                gps_data = self._parse_gprmc_with_file_millis(sentence, pos)
+        Matches native GetTimeData function at 0xdf40.
 
-                # Create initial zero-row for first valid GPRMC (like native)
-                if gps_data and is_first_gprmc:
-                    is_first_gprmc = False
-                    # Native creates a zero-row with GPS position but all CAN values = 0
-                    initial_record = TelemetryRecord(
-                        lap=1,
-                        time_ms=gps_data['time_ms'],
-                        latitude=gps_data['latitude'],
-                        longitude=gps_data['longitude'],
-                        gps_speed_knots=gps_data['speed_knots'],
-                        # All CAN values explicitly set to 0/default
-                        rpm=0, gear=0, aps=0, tps=0,
-                        water_temp=0, intake_temp=0,
-                        front_speed=0, rear_speed=0,
-                        fuel=0, lean=0, pitch=0,
-                        acc_x=0, acc_y=0,
-                        front_brake=0, rear_brake=0,
-                        f_abs=False, r_abs=False,
-                        tcs=0, scs=0, lif=0, launch=0,
-                    )
-                    self.records.append(initial_record)
-                    gps_count += 1
-                    pos = end + 1
-                    continue  # Skip creating current_record for first GPRMC
+        Timestamp structure:
+            [0:2]  millis  (uint16 LE, 0-999)
+            [2]    seconds
+            [3]    minutes
+            [4]    hours
+            [5]    weekday (not used for time computation)
+            [6]    day
+            [7]    month
+            [8:10] year    (uint16 LE)
+        """
+        millis = ts_bytes[0] | (ts_bytes[1] << 8)
+        sec = ts_bytes[2]
+        min_ = ts_bytes[3]
+        hour = ts_bytes[4]
+        day = ts_bytes[6]
+        month = ts_bytes[7]
+        year = ts_bytes[8] | (ts_bytes[9] << 8)
 
-                if gps_data:
-                    # Save previous record
-                    if current_record and current_record.time_ms > 0:
-                        self.records.append(current_record)
+        dt = datetime(year, month, day, hour, min_, sec)
+        return int(dt.timestamp() * 1000) + millis
 
-                    # Check for lap crossing before creating new record
-                    self._check_lap_crossing(gps_data['latitude'], gps_data['longitude'])
+    @staticmethod
+    def _validate_nmea_checksum(sentence: str) -> bool:
+        """Validate NMEA XOR checksum.
 
-                    # Create new record with current CAN state
-                    current_record = TelemetryRecord(
-                        lap=self._current_lap,
-                        time_ms=gps_data['time_ms'],
-                        latitude=gps_data['latitude'],
-                        longitude=gps_data['longitude'],
-                        gps_speed_knots=gps_data['speed_knots'],
-                        rpm=self._state['rpm'],
-                        gear=self._state['gear'],
-                        aps=self._state['aps'],
-                        tps=self._state['tps'],
-                        water_temp=self._state['water_temp'],
-                        intake_temp=self._state['intake_temp'],
-                        front_speed=self._state['front_speed'],
-                        rear_speed=self._state['rear_speed'],
-                        front_brake=self._state['front_brake'],
-                        rear_brake=self._state['rear_brake'],
-                        acc_x=self._state['acc_x'],
-                        acc_y=self._state['acc_y'],
-                        lean=self._state['lean'],
-                        pitch=self._state['pitch'],
-                        f_abs=self._state['f_abs'],
-                        r_abs=self._state['r_abs'],
-                        tcs=self._state['tcs'],
-                        scs=self._state['scs'],
-                        lif=self._state['lif'],
-                        launch=self._state['launch'],
-                        fuel=self._state['fuel'],
-                    )
-                    gps_count += 1
+        Matches native AnalisysNMEA checksum validation at 0xe3f8.
+        Computes XOR of all bytes between '$' and '*', compares with
+        the 2-hex-digit checksum after '*'.
+        """
+        star_idx = sentence.find('*')
+        if star_idx < 1 or star_idx + 3 > len(sentence):
+            return False
 
-                pos = end + 1
-                continue
+        computed = 0
+        for ch in sentence[1:star_idx]:
+            computed ^= ord(ch)
 
-            # CAN record structure (from year position):
-            # [year_lo][year_hi][canid_lo][canid_hi][0x00][0x00][DLC][data_0..data_{DLC-1}]
-            # Preceded by 8-byte timestamp prefix: [millis_lo][millis_hi][sec][min][hour][weekday][day][month]
-            if pos + 7 <= len(self.data):
-                year = struct.unpack('<H', self.data[pos:pos+2])[0]
-                can_id = struct.unpack('<H', self.data[pos+2:pos+4])[0]
+        try:
+            stated = int(sentence[star_idx + 1:star_idx + 3], 16)
+        except ValueError:
+            return False
 
-                if 1990 <= year <= 2100 and can_id in VALID_CAN_IDS:
-                    dlc = CAN_DLC[can_id]
+        return computed == stated
 
-                    if pos + 7 + dlc <= len(self.data):
-                        can_data = self.data[pos+7:pos+7+dlc]
+    @staticmethod
+    def _parse_gprmc_sentence(sentence: str) -> Optional[dict]:
+        """Parse NMEA GPRMC sentence for GPS position and speed.
 
-                        # CAN 0x0511 is a GPS sync marker that appears before each GPRMC.
-                        # Its millis matches the native library's timestamp exactly.
-                        if can_id == 0x0511 and pos >= 8:
-                            can_millis = self.data[pos - 8] | (self.data[pos - 7] << 8)
-                            ts_sec = self.data[pos - 6]
-                            ts_min = self.data[pos - 5]
-                            ts_hour = self.data[pos - 4]
-                            ts_day = self.data[pos - 2]
-                            ts_month = self.data[pos - 1]
-                            if (0 <= can_millis <= 999 and 0 <= ts_sec <= 59 and
-                                    0 <= ts_min <= 59 and 0 <= ts_hour <= 23 and
-                                    1 <= ts_day <= 31 and 1 <= ts_month <= 12):
-                                try:
-                                    dt = datetime(year, ts_month, ts_day, ts_hour, ts_min, ts_sec)
-                                    self._next_gps_timestamp_ms = int(dt.timestamp() * 1000) + can_millis
-                                except (ValueError, OSError):
-                                    pass
-                        elif can_id == 0x023E:
-                            parse_can_0x023e(can_data, self._state, self._fuel_accumulator)
-                        elif can_id in CAN_HANDLERS:
-                            CAN_HANDLERS[can_id](can_data, self._state)
-
-                        can_count += 1
-                        pos += 7 + dlc
-                        continue
-
-            pos += 1
-
-        # Don't forget last record
-        if current_record and current_record.time_ms > 0:
-            self.records.append(current_record)
-
-        print(f"  Found {gps_count} GPS records, {can_count} CAN messages")
-        print(f"  Built {len(self.records)} telemetry records")
-        print(f"  Detected {self._current_lap} laps")
-
-    def _parse_gprmc_with_file_millis(self, sentence: str, binary_pos: int) -> Optional[dict]:
-        """Parse NMEA GPRMC sentence using file_millis for precise timestamp.
-
-        The native library uses the internal acquisition timestamp (file_millis)
-        stored at offset -10/-9 before each GPRMC, which has ~1ms precision.
-        This is more accurate than GPRMC time which is rounded to 100ms by GPS firmware.
-
-        Binary structure before GPRMC:
-            offset -10: file_millis_lo (LSB)
-            offset -9:  file_millis_hi (MSB)
-            offset -8:  seconds
-            offset -7:  minutes
-            offset -6:  hours
-            offset -5:  weekday
-            offset -4:  day
-            offset -3:  month
-            offset -2:  year_lo
-            offset -1:  year_hi
-            offset 0:   '$GPRMC,...'
+        Timestamps are not extracted here — they come from the
+        14-byte record header instead.
         """
         try:
             parts = sentence.split(',')
-            if len(parts) < 10 or parts[2] != 'A':
+            if len(parts) < 8 or parts[2] != 'A':
                 return None
 
-            # Latitude
             lat_str = parts[3]
-            lat_deg = float(lat_str[:2])
-            lat_min = float(lat_str[2:])
-            latitude = lat_deg + lat_min / 60.0
+            lat = float(lat_str[:2]) + float(lat_str[2:]) / 60.0
             if parts[4] == 'S':
-                latitude = -latitude
+                lat = -lat
 
-            # Longitude
             lon_str = parts[5]
-            lon_deg = float(lon_str[:3])
-            lon_min = float(lon_str[3:])
-            longitude = lon_deg + lon_min / 60.0
+            lon = float(lon_str[:3]) + float(lon_str[3:]) / 60.0
             if parts[6] == 'W':
-                longitude = -longitude
+                lon = -lon
 
-            # Speed
             speed_knots = float(parts[7]) if parts[7] else 0.0
 
-            # Use 0x0511 GPS sync marker timestamp if available (matches native)
-            if self._next_gps_timestamp_ms > 0:
-                timestamp_ms = self._next_gps_timestamp_ms
-                self._next_gps_timestamp_ms = 0
-            else:
-                # Fallback: extract from binary prefix
-                timestamp_ms = self._compute_timestamp_from_binary(binary_pos)
-                if timestamp_ms == 0:
-                    date_str = parts[9] if len(parts) > 9 else ""
-                    time_str = parts[1]
-                    timestamp_ms = self._compute_timestamp_from_gprmc(time_str, date_str)
-
-            return {
-                'time_ms': timestamp_ms,
-                'latitude': latitude,
-                'longitude': longitude,
-                'speed_knots': speed_knots,
-            }
+            return {'latitude': lat, 'longitude': lon, 'speed_knots': speed_knots}
         except (ValueError, IndexError):
             return None
 
-    def _compute_timestamp_from_binary(self, gprmc_pos: int) -> int:
-        """Compute Unix timestamp using file_millis and internal time structure.
+    def _create_record(self, time_ms: int, lat: float, lon: float,
+                       speed_knots: float) -> TelemetryRecord:
+        """Create a TelemetryRecord from current accumulated CAN state."""
+        return TelemetryRecord(
+            lap=self._current_lap,
+            time_ms=time_ms,
+            latitude=lat,
+            longitude=lon,
+            gps_speed_knots=speed_knots,
+            rpm=self._state['rpm'],
+            gear=self._state['gear'],
+            aps=self._state['aps'],
+            tps=self._state['tps'],
+            water_temp=self._state['water_temp'],
+            intake_temp=self._state['intake_temp'],
+            front_speed=self._state['front_speed'],
+            rear_speed=self._state['rear_speed'],
+            front_brake=self._state['front_brake'],
+            rear_brake=self._state['rear_brake'],
+            acc_x=self._state['acc_x'],
+            acc_y=self._state['acc_y'],
+            lean=self._state['lean'],
+            pitch=self._state['pitch'],
+            f_abs=self._state['f_abs'],
+            r_abs=self._state['r_abs'],
+            tcs=self._state['tcs'],
+            scs=self._state['scs'],
+            lif=self._state['lif'],
+            launch=self._state['launch'],
+            fuel=self._state['fuel'],
+        )
 
-        This matches the native library behavior which uses the acquisition
-        timestamp rather than the GPS timestamp.
+    def _parse_data_section(self):
+        """Parse the structured record data section.
 
-        Args:
-            gprmc_pos: Position of '$GPRMC' in the binary data
+        The CTRK data section consists of sequential records, each with a
+        14-byte header followed by a variable-length payload:
 
-        Returns:
-            Unix timestamp in milliseconds, or 0 if extraction fails
+            Header (14 bytes):
+                [0:2]   record_type  (uint16 LE): 1=CAN, 2=GPS/NMEA, 5=Lap
+                [2:4]   total_size   (uint16 LE): header + payload
+                [4:14]  timestamp    (10 bytes: millis, sec, min, hour, wday, day, month, year)
+
+            Payload (total_size - 14 bytes):
+                CAN:  [canid(2)][pad(2)][DLC(1)][data(DLC)]
+                GPS:  NMEA sentence text (e.g. "$GPRMC,...*XX\\r\\n")
+                Lap:  lap timing data
+
+        Records are emitted at 100ms intervals (10Hz), matching the native
+        library's time-interval filtering (max_interval=100ms).
+
+        Based on disassembly of GetSensorsRecordData at 0xa970.
         """
-        try:
-            # Need at least 10 bytes before GPRMC for the timestamp structure
-            if gprmc_pos < 10:
-                return 0
+        data_start = self._find_data_start()
+        pos = data_start
 
-            # Extract file_millis (2 bytes little-endian at offset -10/-9)
-            file_millis = self.data[gprmc_pos - 10] | (self.data[gprmc_pos - 9] << 8)
+        # GetTimeDataEx state: tracks previous record for incremental computation
+        prev_ts_bytes = None
+        prev_epoch_ms = 0
+        current_epoch_ms = 0
 
-            # Extract time components from internal structure
-            ts_sec = self.data[gprmc_pos - 8]
-            ts_min = self.data[gprmc_pos - 7]
-            ts_hour = self.data[gprmc_pos - 6]
-            # offset -5 is weekday (not needed)
-            ts_day = self.data[gprmc_pos - 4]
-            ts_month = self.data[gprmc_pos - 3]
-            ts_year = self.data[gprmc_pos - 2] | (self.data[gprmc_pos - 1] << 8)
+        # Emission state: tracks when the last record was emitted
+        last_emitted_ms = None
+        gps_count = 0
+        can_count = 0
+        checksum_failures = 0
 
-            # Validate values
-            if not (1990 <= ts_year <= 2100):
-                return 0
-            if not (1 <= ts_month <= 12):
-                return 0
-            if not (1 <= ts_day <= 31):
-                return 0
-            if not (0 <= ts_hour <= 23):
-                return 0
-            if not (0 <= ts_min <= 59):
-                return 0
-            if not (0 <= ts_sec <= 59):
-                return 0
-            if not (0 <= file_millis <= 999):
-                return 0
+        # Current GPS state (updated by type-2 GPS records)
+        # Sentinel 9999.0 matches native behavior when no fix is acquired
+        current_lat = 9999.0
+        current_lon = 9999.0
+        current_speed_knots = 0.0
+        has_gprmc = False  # True once any GPRMC (A or V) has been seen
 
-            # Build timestamp
-            dt = datetime(ts_year, ts_month, ts_day, ts_hour, ts_min, ts_sec)
-            timestamp_ms = int(dt.timestamp() * 1000) + file_millis
+        while pos + 14 <= len(self.data):
+            # Read 14-byte record header
+            rec_type = struct.unpack_from('<H', self.data, pos)[0]
+            total_size = struct.unpack_from('<H', self.data, pos + 2)[0]
 
-            return timestamp_ms
+            # Stop conditions: end-of-data marker or invalid header
+            if rec_type == 0 and total_size == 0:
+                break
+            if total_size < 14 or total_size > 500 or rec_type not in (1, 2, 3, 4, 5):
+                break
+            if pos + total_size > len(self.data):
+                break
 
-        except (IndexError, ValueError, OSError):
-            return 0
+            ts_bytes = self.data[pos + 4:pos + 14]
+            payload = self.data[pos + 14:pos + total_size]
 
-    def _compute_timestamp_from_gprmc(self, time_str: str, date_str: str) -> int:
-        """Fallback: Compute Unix timestamp from GPRMC time string.
+            # === Timestamp computation (GetTimeDataEx logic) ===
+            # Always update current_epoch_ms when timestamp bytes change.
+            # prev_epoch_ms / prev_ts_bytes are used solely for incremental
+            # computation, independent of emission timing.
+            if prev_ts_bytes is None or ts_bytes != prev_ts_bytes:
+                if prev_ts_bytes is None:
+                    current_epoch_ms = self._get_time_data(ts_bytes)
+                elif ts_bytes[2:10] == prev_ts_bytes[2:10]:
+                    # Same second: incremental millis update
+                    prev_millis = prev_ts_bytes[0] | (prev_ts_bytes[1] << 8)
+                    curr_millis = ts_bytes[0] | (ts_bytes[1] << 8)
+                    current_epoch_ms = curr_millis + (prev_epoch_ms - prev_millis)
+                    # Handle millis wrapping (e.g., 999 -> 8) within the same
+                    # second field. This occurs when the hardware timestamp
+                    # capture is non-atomic: millis rolled over but the second
+                    # field hasn't incremented yet. Add 1000ms to compensate.
+                    if curr_millis < prev_millis:
+                        current_epoch_ms += 1000
+                else:
+                    # Different second: full recomputation
+                    current_epoch_ms = self._get_time_data(ts_bytes)
 
-        Note: GPRMC timestamps are rounded to 100ms by GPS firmware,
-        so this is less accurate than file_millis.
-        """
-        try:
-            hours = int(time_str[0:2])
-            minutes = int(time_str[2:4])
-            seconds = int(time_str[4:6])
+                prev_epoch_ms = current_epoch_ms
+                prev_ts_bytes = ts_bytes
 
-            # Parse milliseconds from GPRMC time string (e.g., ".300" -> 300)
-            if len(time_str) > 6 and time_str[6] == '.':
-                ms_str = time_str[7:]
-                ms_str = (ms_str + '000')[:3]
-                millis = int(ms_str)
-            else:
-                millis = 0
+            # Start the emission clock at the very first record,
+            # matching native GetSensorsRecordData behavior.
+            if last_emitted_ms is None:
+                last_emitted_ms = current_epoch_ms
 
-            if len(date_str) >= 6:
-                day = int(date_str[0:2])
-                month = int(date_str[2:4])
-                year = 2000 + int(date_str[4:6])
-            else:
-                now = datetime.utcnow()
-                day, month, year = now.day, now.month, now.year
+            # === Process payload by record type ===
+            if rec_type == 1 and len(payload) >= 5:
+                # CAN record: [canid(2)][pad(2)][DLC(1)][data...]
+                can_id = struct.unpack_from('<H', payload, 0)[0]
+                can_data = payload[5:]
 
-            dt = datetime(year, month, day, hours, minutes, seconds)
-            return int(dt.timestamp()) * 1000 + millis
-        except (ValueError, IndexError):
-            return 0
+                if can_id == 0x023E and len(can_data) >= 4:
+                    parse_can_0x023e(can_data, self._state, self._fuel_accumulator)
+                elif can_id in CAN_HANDLERS:
+                    CAN_HANDLERS[can_id](can_data, self._state)
+
+                can_count += 1
+
+            elif rec_type == 2 and len(payload) > 6:
+                # GPS/NMEA record
+                sentence = payload.decode('ascii', errors='replace').rstrip('\r\n\x00')
+                if sentence.startswith('$GPRMC'):
+                    if self._validate_nmea_checksum(sentence):
+                        gps_data = self._parse_gprmc_sentence(sentence)
+                        if gps_data:
+                            # Valid fix (status 'A') — update position
+                            current_lat = gps_data['latitude']
+                            current_lon = gps_data['longitude']
+                            current_speed_knots = gps_data['speed_knots']
+                        # Emit initial record at the first GPRMC (even 'V' status).
+                        # Uses clock start time (first record's timestamp).
+                        if not has_gprmc:
+                            has_gprmc = True
+                            self._check_lap_crossing(current_lat, current_lon)
+                            record = self._create_record(
+                                last_emitted_ms, current_lat, current_lon,
+                                current_speed_knots)
+                            self.records.append(record)
+                            gps_count += 1
+                    else:
+                        checksum_failures += 1
+
+            # === Emission check AFTER payload (100ms interval) ===
+            # Emit after processing the payload so the current record's
+            # data is included in the emitted state.
+            # Emit once a GPRMC sentence has been seen (even with 'V' status).
+            # Uses sentinel position (9999, 9999) until GPS fix is acquired.
+            if has_gprmc and current_epoch_ms - last_emitted_ms >= 100:
+                self._check_lap_crossing(current_lat, current_lon)
+                record = self._create_record(
+                    current_epoch_ms, current_lat, current_lon,
+                    current_speed_knots)
+                self.records.append(record)
+                gps_count += 1
+                last_emitted_ms = current_epoch_ms
+
+            pos += total_size
+
+        # Emit final accumulated record
+        if has_gprmc and last_emitted_ms is not None:
+            self._check_lap_crossing(current_lat, current_lon)
+            record = self._create_record(
+                current_epoch_ms, current_lat, current_lon, current_speed_knots)
+            self.records.append(record)
+            gps_count += 1
+
+        print(f"  Found {gps_count} GPS records, {can_count} CAN messages")
+        if checksum_failures:
+            print(f"  Rejected {checksum_failures} GPRMC sentences (bad checksum)")
+        print(f"  Built {len(self.records)} telemetry records")
+        print(f"  Detected {self._current_lap} laps")
 
     def export_csv(self, output_path: str):
         """Export records to CSV matching native library format."""

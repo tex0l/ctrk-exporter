@@ -2,9 +2,9 @@
 
 Documentation of the reverse-engineered Yamaha Y-Trac native library.
 
-> **Status:** Fully Validated - 42 files, 21 channels, 100% match with native output
+> **Status:** Validated — 45 files, 21 channels, 95.37% match rate against native output
 >
-> **Last Updated:** 2026-01-27
+> **Last Updated:** 2026-01-29
 
 ## Overview
 

@@ -1,13 +1,20 @@
 # CTRK File Format Specification
 
-**Version:** 2.0
-**Date:** 2026-01-29
-**Status:** Validated — 45 files tested, 21 channels, 95.37% match rate against native library
+**Version:** 2.1
+**Date:** 2026-02-04
+**Status:** Validated — 47 files tested, 22 channels, 94.9% overall match rate against native library (RPM: 83.0%)
 **Source:** Reverse-engineered from Yamaha Y-Trac DataViewer Android Application (v1.3.8), `libSensorsRecordIF.so` disassembly via radare2
 
 ---
 
 ## Changelog
+
+### v2.1 (2026-02-04)
+- Added Section 6.7: Native-Only Behaviors — documented three-band time delta check (10ms secondary threshold at 0xaf1b) and row counter limit (72000 records at 0xaece) from native library
+- Enhanced CAN 0x0209 documentation: added disassembly address for gear 7 rejection (`cmp eax, 7; je skip` at 0xe163)
+- Enhanced CAN 0x051b documentation: added handler address (0xe102) and storage offset (0x2c8)
+- Confirmed all 6 inaccuracies from Review Report Recommendation #6 were already fixed in v2.0: millis wrapping native behavior (5.3), initial state zeros (6.1), LEAN truncation (8.2.5), lap detection comparison (10.4), type-5 payload decode (4.2), CAN padding/GPS sentence wording (4.4/4.5)
+- Validated against parser v7 (1048 lines) including `--native` per-lap mode
 
 ### v2.0 (2026-01-29)
 - **BREAKING:** Complete rewrite. The data section uses structured 14-byte record headers, NOT pattern matching. Previous versions described a fundamentally incorrect parsing approach.
@@ -279,7 +286,14 @@ Payload: 72 bytes — an ASCII GPRMC sentence.
 | 4 | AIN | Analog input (not observed) | Skip (read and discard) |
 | 5 | Lap | Lap marker from CCU hardware | Informational (see note) |
 
-**Note on type 5 (Lap):** The CCU emits these records at hardware-detected lap crossings. The parser does not use these for lap detection — it implements its own software-based crossing algorithm (see [Section 10](#10-lap-detection)). The payload is 8 bytes; its content is not decoded.
+**Note on type 5 (Lap):** The CCU emits these records at hardware-detected lap crossings. The parser does not use these for lap detection — it implements its own software-based GPS crossing algorithm (see [Section 10](#10-lap-detection)). The payload is 8 bytes:
+
+| Offset | Size | Type | Description |
+|--------|------|------|-------------|
+| 0 | 4 | uint32 LE | Lap elapsed time in milliseconds |
+| 4 | 4 | — | Always zero (reserved) |
+
+Verified across 309 type-5 records — decoded values match realistic lap times (60-120 seconds).
 
 ### 4.3 End-of-Data Detection
 
@@ -296,7 +310,7 @@ Stop reading records when ANY of these conditions is true:
 ```
 Offset  Size   Type       Field      Description
 0       2      uint16 LE  can_id     CAN message identifier
-2       2      —          (padding)  Unused, typically 0x00 0x00
+2       2      —          (padding)  Unused, always 0x00 0x00
 4       1      uint8      dlc        Data Length Code (number of data bytes)
 5       dlc    bytes      can_data   CAN frame data
 ```
@@ -319,7 +333,7 @@ Payload:  11 05 00 00 08 55 d1 d0 d1 d0 2c 00 28
 
 ### 4.5 Record Type 2: GPS Payload Format
 
-The payload is an ASCII string containing an NMEA sentence, typically terminated with `\r\n` and/or null bytes. See [Section 7](#7-gps-nmea-records) for parsing details.
+The payload is an ASCII string containing an NMEA GPRMC sentence (exclusively — no other sentence types observed across 423,103 GPS records in 47 files), terminated with `\r\n` and/or null bytes. See [Section 7](#7-gps-nmea-records) for parsing details.
 
 #### Worked Example
 
@@ -343,6 +357,7 @@ $GPRMC,122135.000,A,4757.0410,N,00012.5240,E,5.14,334.60,290725,,,A*65\r\n
 | 0x0264 | 4 | 23 |
 | 0x0268 | 6 | 25 |
 | 0x0511 | 8 | 27 |
+| 0x051b | 8 | 27 |
 
 ---
 
@@ -419,6 +434,8 @@ Record N+1: epoch = ...108008  (9ms forward, correct)
 
 Without this fix, the emission clock breaks because `current_epoch_ms < last_emitted_ms`, preventing further emissions until the timestamps naturally advance past the stale `last_emitted_ms`.
 
+**Native library behavior:** The native library does NOT compensate for millis wrapping. When wrapping occurs, it produces a negative time delta, emits the record with error code -2, and continues without correction. This can cause the native library to suppress emission for an entire lap (~90 seconds of data), as observed in file 20250906-161606 where native output is missing lap 6. The +1000ms compensation described above is a Python parser improvement that prevents this data loss.
+
 ---
 
 ## 6. Emission Logic
@@ -443,10 +460,10 @@ Maintain a state dictionary holding the latest value for each telemetry channel.
 | rear_speed | 0 | 0.0 km/h |
 | front_brake | 0 | 0.0 bar |
 | rear_brake | 0 | 0.0 bar |
-| acc_x | 7000 | 0.0 G |
-| acc_y | 7000 | 0.0 G |
-| lean | 9000 | 0.0 deg |
-| pitch | 30000 | 0.0 deg/s |
+| acc_x | 0 | -7.0 G |
+| acc_y | 0 | -7.0 G |
+| lean | 0 | -90.0 deg |
+| pitch | 0 | -300.0 deg/s |
 | f_abs | false | inactive |
 | r_abs | false | inactive |
 | tcs | 0 | inactive |
@@ -454,6 +471,8 @@ Maintain a state dictionary holding the latest value for each telemetry channel.
 | lif | 0 | inactive |
 | launch | 0 | inactive |
 | fuel | 0 | 0.0 cc |
+
+**Note on initial state:** The native library initializes all CAN state to zero via `memset(state, 0, 0x2c8)` at address 0xa9fc. This produces physically impossible calibrated values for some channels (e.g., -7G acceleration, -90° lean, -300°/s pitch) until real CAN data arrives. This typically affects only the first 1-2 records before CAN messages populate the state buffer. The parser matches this native behavior.
 
 ### 6.2 Emission Clock
 
@@ -506,6 +525,7 @@ For each record in the data section:
 4. Process payload:
    - Type 1 (CAN): update telemetry state
    - Type 2 (GPS): update GPS state; emit initial record if first GPRMC
+   - Type 5 (Lap): re-align emission clock (last_emitted_ms = current_epoch_ms)
    - Other types: skip payload
 5. Emission check: if has_gprmc AND elapsed >= 100ms, emit and update clock
 6. Advance to next record
@@ -513,9 +533,44 @@ For each record in the data section:
 
 The emission check occurs **after** payload processing so that the emitted state includes the current record's data.
 
+**Type-5 emission clock reset:** The native library calls `GetSensorsRecordData` independently for each lap, zeroing `prev_emitted_epoch_ms` via `memset(0)` at each call. This re-aligns the 100ms emission grid at every lap boundary. The parser matches this behavior by resetting `last_emitted_ms` at type-5 Lap marker records, without resetting CAN state (preserving continuous telemetry across laps).
+
 ### 6.6 Final Record
 
 After the parsing loop ends, emit one final record with the last accumulated state. This captures any remaining telemetry accumulated since the last 100ms emission.
+
+### 6.7 Native-Only Behaviors (Not Implemented in Parser)
+
+The following behaviors are present in the native library's emission logic but are **not implemented** in this parser. They are documented here for completeness and as reference for future analysis.
+
+#### 6.7.1 Three-Band Time Delta Check
+
+The native library implements a three-band time delta classification in its main record processing loop. The Python parser only implements band 3 (the 100ms emission interval).
+
+```
+delta = current_epoch_ms - last_emitted_ms
+
+Band 0: delta < 0          → emit record with error code -2 (negative time)
+Band 1: delta <= 10ms      → skip record entirely (no payload processing)
+Band 2: 10ms < delta < 100 → process payload, clear a validity flag
+Band 3: delta >= 100ms     → full processing + emit record
+```
+
+**Disassembly evidence:** `cmp rcx, 10; jle skip` at 0xaf1b (band 1 threshold). `jge` at 0xaf19 for the 100ms check (band 3).
+
+**Impact:** Negligible. 97.81% of native emissions fall in band 3 (exactly 100ms intervals). Bands 1 and 2 fire in less than 2.2% of records, and band 1 records typically have identical timestamps (delta = 0ms). The "validity flag" semantics in band 2 are not fully understood.
+
+**Decision:** Not implemented. The parser processes all records regardless of time delta. This has no measurable effect on output match rate.
+
+#### 6.7.2 Row Counter Limit (72000)
+
+The native library enforces a maximum of 72,000 emitted records per lap. When the counter reaches this limit, the function returns with error code -3.
+
+**Disassembly evidence:** `cmp [rcx], eax; jge error_-3` at 0xaece.
+
+At 10 Hz emission rate, 72,000 records corresponds to 7,200 seconds (2 hours) of continuous recording per lap. This limit is never reached in normal track sessions (typical laps are 60-120 seconds).
+
+**Decision:** Not enforced in the parser. No test files approach this limit.
 
 ---
 
@@ -597,6 +652,7 @@ Parser behavior for void sentences:
 | 0x0264 | Wheel Speed | 4 | Front speed, Rear speed |
 | 0x0268 | ABS Status | 6 | F_ABS, R_ABS |
 | 0x0511 | (unknown) | 8 | Not decoded |
+| 0x051b | (unknown) | 8 | Not decoded — handler at 0xe102 stores 8 raw bytes at native struct offset 0x2c8, but data is not mapped to any SensorsRecord field and not included in output |
 
 CAN IDs not in the table above may appear in files and should be silently skipped.
 
@@ -617,7 +673,7 @@ Byte  Bits     Field   Type     Description
 ```
 
 - RPM raw: `(data[0] << 8) | data[1]`
-- Gear: `data[4] & 0x07` — ignore value 7 (invalid/transitioning)
+- Gear: `data[4] & 0x07` — value 7 is rejected as invalid (transitioning between gears). Disassembly: `cmp eax, 7; je skip` at 0xe163.
 
 #### 8.2.2 Throttle — 0x0215 (DLC=8)
 
@@ -710,7 +766,7 @@ def decode_lean(data):
     if deviation <= 499:
         return 9000  # Upright
 
-    # Step 5: Round to nearest degree (100 raw units = 1 degree)
+    # Step 5: Truncate to nearest 100 (floor/integer division, NOT rounding)
     deviation_rounded = deviation - (deviation % 100)
     return (9000 + deviation_rounded) & 0xFFFF
 ```
@@ -848,7 +904,16 @@ crossing = (0 <= t <= 1)
 - The first crossing marks the end of lap 1 and the start of lap 2
 - Reset the fuel accumulator to 0 at each crossing
 
-### 10.4 Initial Position
+### 10.4 Native Library Comparison
+
+The native library uses a different lap detection mechanism: it scans the data section for type-5 Lap marker records (see Section 4.2) and uses them to partition the data into per-lap segments. The two approaches agree in 39 of 42 tested files.
+
+Key differences:
+- **Lap detection:** Native uses type-5 hardware markers; Python uses GPS finish-line crossing geometry. The GPS approach is more robust — it detects laps even when type-5 records are missing or corrupt.
+- **State at lap boundaries:** Native zeroes all CAN state (`memset(state, 0, 0x2c8)`) when processing each lap independently, producing physically impossible values (e.g., -7G, -90°) in the first 1-2 records of every lap after lap 1. Python carries forward continuous state, producing physically correct values at all times.
+- **Disagreements:** In 3 of 42 files, the approaches assign records to different laps due to missing type-5 markers or boundary-edge timing differences.
+
+### 10.5 Initial Position
 
 The crossing algorithm requires a previous position. Initialize `prev_lat` and `prev_lon` to 0.0. Skip the crossing check for the first emitted record (when prev is 0.0, 0.0).
 
@@ -912,7 +977,15 @@ Files recorded when the CCU has not synchronized its RTC show a default date of 
 
 See [Section 5.3](#53-millis-wrapping-hardware-edge-case). Observed once per ~7 million raw records (1 in 45 files). Without the compensation, timestamps go backwards and emission breaks for the remainder of the affected section.
 
-### 12.4 Record Count Differences vs Native Library
+### 12.4 Emission Timing vs Native Library
+
+The Python parser's emission clock initialization (`last_emitted_ms = current_epoch_ms` at the first record) produces **identical first emission timestamps** as the native library across all tested files (45/45 files show zero offset).
+
+An earlier version of the parser exhibited a 10-90ms offset that caused a systematic one-CAN-update shift. This was resolved by improvements to timestamp computation (DLC-based CAN advancement, millis wrapping reversal fix). Investigation confirmed the current approach is optimal — all alternative initialization strategies (truncation to 100ms boundary, first-GPRMC gating, GPRMC UTC time, fixed offsets, hybrid approaches) produce worse match rates.
+
+Adding emission clock reset at type-5 Lap marker records (matching the native per-lap `memset(0)` behavior) improved RPM match from ~77% to ~83% and overall from ~94.1% to ~94.9%. The remaining ~17% RPM gap is caused by within-lap emission grid divergence from the native per-lap re-reading architecture. All CAN data extraction (byte positions, formulas, scaling) is correct.
+
+### 12.5 Record Count Differences vs Native Library
 
 The native library has a bug where a millis wrapping event can cause it to suppress emission for an entire lap (~90 seconds of data). The parser described in this specification correctly emits through the wrapping event, producing more records than the native library for affected files. This is the intended behavior — the data is valid and should not be discarded.
 

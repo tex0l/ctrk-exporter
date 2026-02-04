@@ -6,7 +6,6 @@ Generate a comprehensive graph showing ALL telemetry channels.
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
-import numpy as np
 from pathlib import Path
 import sys
 
@@ -111,7 +110,6 @@ def create_all_channels_graph(df: pd.DataFrame, output_path: Path, lap: int = No
             ax.yaxis.set_label_coords(-0.06, 0.5)
 
             # Stats annotation
-            mean_val = data.mean()
             max_val = data.max()
             min_val = data.min()
             ax.text(1.01, 0.7, f'max:{max_val:.1f}', transform=ax.transAxes, fontsize=6, color='#888')

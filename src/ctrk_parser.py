@@ -19,12 +19,11 @@ License: MIT
 """
 
 import struct
-import re
 import csv
 import sys
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from datetime import datetime
 
 
@@ -283,22 +282,6 @@ CAN_HANDLERS = {
     # 0x023E handled separately due to fuel accumulator
 }
 
-# CAN Data Length Codes (verified from binary analysis)
-CAN_DLC = {
-    0x0209: 6,
-    0x0215: 8,
-    0x023E: 4,
-    0x0250: 8,
-    0x0258: 8,
-    0x0260: 8,
-    0x0264: 4,
-    0x0268: 6,
-    0x0226: 7,
-    0x0227: 3,
-    0x0511: 8,
-    0x051b: 8,
-}
-
 
 # =============================================================================
 # DATA STRUCTURES
@@ -360,7 +343,7 @@ class TelemetryRecord:
 # =============================================================================
 
 class CTRKParser:
-    """Parser v6 based on verified reverse engineering of libSensorsRecordIF.so"""
+    """Parser v7 based on verified reverse engineering of libSensorsRecordIF.so"""
 
     MAGIC = b'HEAD'
 
@@ -837,10 +820,6 @@ class CTRKParser:
         current_speed_knots = 0.0
         has_gprmc = False
 
-        gps_count = 0
-        can_count = 0
-        checksum_failures = 0
-
         # === RECORD PROCESSING LOOP ===
         pos = start
         while pos + 14 <= end:
@@ -884,7 +863,6 @@ class CTRKParser:
                     parse_can_0x023e(can_data, self._state, self._fuel_accumulator)
                 elif can_id in CAN_HANDLERS:
                     CAN_HANDLERS[can_id](can_data, self._state)
-                can_count += 1
 
             elif rec_type == 2 and len(payload) > 6:
                 sentence = payload.decode('ascii', errors='replace').rstrip('\r\n\x00')
@@ -901,9 +879,6 @@ class CTRKParser:
                                 last_emitted_ms, current_lat, current_lon,
                                 current_speed_knots)
                             self.records.append(record)
-                            gps_count += 1
-                    else:
-                        checksum_failures += 1
 
             # Type-5 records within a lap range are ignored
             # (boundaries are pre-computed by _scan_lap_boundaries)
@@ -914,7 +889,6 @@ class CTRKParser:
                     current_epoch_ms, current_lat, current_lon,
                     current_speed_knots)
                 self.records.append(record)
-                gps_count += 1
                 last_emitted_ms = current_epoch_ms
 
             pos += total_size
@@ -924,7 +898,6 @@ class CTRKParser:
             record = self._create_record(
                 current_epoch_ms, current_lat, current_lon, current_speed_knots)
             self.records.append(record)
-            gps_count += 1
 
     def export_csv(self, output_path: str):
         """Export records to CSV matching native library format."""

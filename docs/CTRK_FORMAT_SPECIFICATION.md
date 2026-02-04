@@ -13,7 +13,7 @@
 - Added Section 6.7: Native-Only Behaviors — documented three-band time delta check (10ms secondary threshold at 0xaf1b) and row counter limit (72000 records at 0xaece) from native library
 - Enhanced CAN 0x0209 documentation: added disassembly address for gear 7 rejection (`cmp eax, 7; je skip` at 0xe163)
 - Enhanced CAN 0x051b documentation: added handler address (0xe102) and storage offset (0x2c8)
-- Confirmed all 6 inaccuracies from Review Report Recommendation #6 were already fixed in v2.0: millis wrapping native behavior (5.3), initial state zeros (6.1), LEAN truncation (8.2.5), lap detection comparison (10.4), type-5 payload decode (4.2), CAN padding/GPS sentence wording (4.4/4.5)
+- Verified spec accuracy for: millis wrapping native behavior (5.3), initial state zeros (6.1), LEAN truncation (8.2.5), lap detection comparison (10.4), type-5 payload decode (4.2), CAN padding/GPS sentence wording (4.4/4.5)
 - Validated against parser v7 (1048 lines) including `--native` per-lap mode
 
 ### v2.0 (2026-01-29)
@@ -28,7 +28,7 @@
 - Documented void GPS handling and sentinel coordinates (9999, 9999)
 - Documented fuel delta accumulator with lap-boundary reset
 - Added complete hex-level worked examples from real files
-- Validated across 45 files (July-October 2025), 422K+ telemetry records
+- Validated across 47 files (July-October 2025), 420K+ telemetry records
 
 ### v1.3 (2026-01-27)
 - Decoded CAN timestamp structure (8 bytes, without millis)
@@ -975,15 +975,13 @@ Files recorded when the CCU has not synchronized its RTC show a default date of 
 
 ### 12.3 Millis Wrapping
 
-See [Section 5.3](#53-millis-wrapping-hardware-edge-case). Observed once per ~7 million raw records (1 in 45 files). Without the compensation, timestamps go backwards and emission breaks for the remainder of the affected section.
+See [Section 5.3](#53-millis-wrapping-hardware-edge-case). Observed once per ~7 million raw records (1 in 47 files). Without the compensation, timestamps go backwards and emission breaks for the remainder of the affected section.
 
 ### 12.4 Emission Timing vs Native Library
 
-The Python parser's emission clock initialization (`last_emitted_ms = current_epoch_ms` at the first record) produces **identical first emission timestamps** as the native library across all tested files (45/45 files show zero offset).
+The emission clock initializes at the first record timestamp (`last_emitted_ms = current_epoch_ms`) and resets at type-5 Lap marker records (matching the native per-lap `memset(0)` behavior). This produces **identical first emission timestamps** as the native library across all tested files.
 
-An earlier version of the parser exhibited a 10-90ms offset that caused a systematic one-CAN-update shift. This was resolved by improvements to timestamp computation (DLC-based CAN advancement, millis wrapping reversal fix). Investigation confirmed the current approach is optimal — all alternative initialization strategies (truncation to 100ms boundary, first-GPRMC gating, GPRMC UTC time, fixed offsets, hybrid approaches) produce worse match rates.
-
-Adding emission clock reset at type-5 Lap marker records (matching the native per-lap `memset(0)` behavior) improved RPM match from ~77% to ~83% and overall from ~94.1% to ~94.9%. The remaining ~17% RPM gap is caused by within-lap emission grid divergence from the native per-lap re-reading architecture. All CAN data extraction (byte positions, formulas, scaling) is correct.
+The remaining ~17% RPM gap is caused by within-lap emission grid divergence from the native per-lap re-reading architecture. All CAN data extraction (byte positions, formulas, scaling) is correct.
 
 ### 12.5 Record Count Differences vs Native Library
 

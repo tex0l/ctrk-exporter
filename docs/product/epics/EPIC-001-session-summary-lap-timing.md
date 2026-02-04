@@ -24,13 +24,13 @@ Surface session-level metadata and per-lap timing information that the parser al
 - Add a `summary` CLI subcommand for quick inspection without full parse output
 - Include lap timing data in CSV output (optional: as a separate summary CSV or as header comments)
 - Expose session metadata and lap times via the CTRKParser API (programmatic access)
-- **Hybrid lap detection** (from Review Rec #5): Use type-5 Lap marker records as primary lap detection, with GPS finish-line crossing as fallback when type-5 markers are absent. This improves native agreement from 39/42 to 41/42 files and ensures accurate lap timing even in edge cases (e.g., millis wrapping causing missing type-5 markers)
+- **Hybrid lap detection**: Use type-5 Lap marker records as primary lap detection, with GPS finish-line crossing as fallback when type-5 markers are absent. This improves native agreement from 39/42 to 41/42 files and ensures accurate lap timing even in edge cases (e.g., millis wrapping causing missing type-5 markers)
 
 ### Excluded
 
-- Interactive lap comparison or visualization (see future EPIC-004)
+- Interactive lap comparison or visualization
 - Sector timing or split times (not available in current data; would require sector definition)
-- Cross-session comparison (see future EPIC-005)
+- Cross-session comparison
 - Changes to the binary parsing logic or CAN data extraction
 
 ---
@@ -96,7 +96,7 @@ Surface session-level metadata and per-lap timing information that the parser al
 - None. This epic builds entirely on existing parser capabilities.
 - The JSON footer is already read by the parser (bytes are available); it just needs to be parsed and exposed.
 - Lap boundaries are already detected (both GPS crossing and type-5 markers); timing is derivable from existing `time_ms` fields.
-- **TASK-H3** (Spec Accuracy Update) should be completed first so that type-5 Lap marker payload format (`[lap_time_ms(4LE)][reserved(4)]`) is formally documented before implementation.
+- The type-5 Lap marker payload format (`[lap_time_ms(4LE)][reserved(4)]`) is documented in CTRK_FORMAT_SPECIFICATION.md Section 4.2.
 
 ---
 
@@ -139,7 +139,7 @@ After parsing, iterate over `self.records` and group by `lap` field. For each la
 - `duration_ms` = `end_ms - start_ms`
 - `record_count` = number of records in that lap
 
-### Hybrid Lap Detection (from Rec #5)
+### Hybrid Lap Detection
 
 Replace the GPS-only lap detection with a hybrid approach:
 - **Primary:** Type-5 Lap marker records (matching native library behavior)

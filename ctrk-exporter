@@ -13,9 +13,9 @@ Usage:
 import argparse
 import subprocess
 import sys
+import re
 import shutil
 import time
-import os
 from pathlib import Path
 from datetime import datetime
 
@@ -36,12 +36,6 @@ def run_cmd(cmd, check=True, capture=False, cwd=None):
         capture_output=capture, text=True
     )
     return result
-
-
-def ensure_output_dir():
-    """Create output directory if it doesn't exist."""
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    return OUTPUT_DIR
 
 
 def cmd_parse(args):
@@ -304,7 +298,6 @@ def cmd_android_convert(args):
     result = run_cmd("adb shell cat /sdcard/ui.xml", capture=True, check=False)
 
     # Find "CONVERT CTRK FILES" button (text is uppercase on Android)
-    import re
     match = re.search(r'text="CONVERT CTRK FILES"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', result.stdout, re.IGNORECASE)
     if match:
         x1, y1, x2, y2 = map(int, match.groups())
@@ -519,11 +512,11 @@ Examples:
     android_parser = subparsers.add_parser("android", help="Android converter app commands")
     android_sub = android_parser.add_subparsers(dest="android_cmd", help="Android command")
 
-    setup_parser = android_sub.add_parser("setup", help="Setup Android app (download APK, extract .so, build)")
+    android_sub.add_parser("setup", help="Setup Android app (download APK, extract .so, build)")
     convert_parser = android_sub.add_parser("convert", help="Convert CTRK file using Android app")
     convert_parser.add_argument("input", help="Input CTRK file")
     convert_parser.add_argument("-o", "--output", help="Output CSV file")
-    clean_parser = android_sub.add_parser("clean", help="Clean Android build artifacts")
+    android_sub.add_parser("clean", help="Clean Android build artifacts")
 
     args = parser.parse_args()
 

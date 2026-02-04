@@ -2,9 +2,9 @@
 
 Documentation of the reverse-engineered Yamaha Y-Trac native library.
 
-> **Status:** Validated — 45 files, 21 channels, 95.37% match rate against native output
+> **Status:** Validated — 47 files, 22 channels, 94.9% match rate against native output (42 comparison pairs)
 >
-> **Last Updated:** 2026-01-29
+> **Last Updated:** 2026-02-04
 
 ## Overview
 
@@ -98,36 +98,9 @@ All CAN formulas have been verified by disassembly:
 | 0x0264 | Front/Rear Speed | ✓ Confirmed |
 | 0x0268 | F_ABS, R_ABS | ✓ Confirmed (R_ABS=bit0, F_ABS=bit1) |
 
-### CAN Message Timestamp Structure
+### Record Timestamp Structure
 
-Each CAN message is preceded by a **full 8-byte timestamp**:
-
-```
-[sec] [min] [hour] [weekday] [day] [month] [year_lo] [year_hi] [CAN_ID]
-```
-
-| Field | Size | Example (July 29, 2025, 14:41:10 UTC) |
-|-------|------|---------------------------------------|
-| Seconds | 1 byte | `0A` (10) |
-| Minutes | 1 byte | `29` (41) |
-| Hours | 1 byte | `0E` (14 UTC) |
-| Weekday | 1 byte | `02` (Tuesday, Mon=1) |
-| Day | 1 byte | `1D` (29) |
-| Month | 1 byte | `07` (July) |
-| Year | 2 bytes LE | `E9 07` (0x07E9 = 2025) |
-| CAN ID | 2 bytes LE | `15 02` (0x0215) |
-
-**Key insight:** The pattern `E9 07` is the **year 2025** in little-endian (uint16), not a magic number.
-
-**Year encoding (uint16 little-endian):**
-| Year | Value | Bytes |
-|------|-------|-------|
-| 2024 | 0x07E8 | `E8 07` |
-| 2025 | 0x07E9 | `E9 07` |
-| 2026 | 0x07EA | `EA 07` |
-| 2030 | 0x07EE | `EE 07` |
-
-The parser validates year is in range 1990-2100 and CAN ID is in the known list.
+Each record has a 14-byte header containing a 10-byte timestamp. See [CTRK_FORMAT_SPECIFICATION.md Section 4.1](CTRK_FORMAT_SPECIFICATION.md#41-record-header) for the complete structure: `[millis(2LE)][sec][min][hour][wday][day][month][year(2LE)]`. The native library uses bytes 2-9 (the same-second portion) for its `memcmp` optimization at 0xaee1.
 
 ## Calibration Formulas
 
@@ -135,36 +108,15 @@ See [CTRK_FORMAT_SPECIFICATION.md](CTRK_FORMAT_SPECIFICATION.md) for complete fo
 
 ### LEAN Angle (Special Case)
 
-The native LEAN formula includes a deadband:
-
-```python
-def compute_lean_native(data: bytes) -> int:
-    b0, b1, b2, b3 = data[0], data[1], data[2], data[3]
-    val1_part = (b0 << 4) | (b2 & 0x0f)
-    val1 = val1_part << 8
-    val2 = ((b1 & 0x0f) << 4) | (b3 >> 4)
-    sum_val = (val1 + val2) & 0xFFFF
-
-    if sum_val < 9000:
-        deviation = 9000 - sum_val
-    else:
-        deviation = (sum_val - 9000) & 0xFFFF
-
-    # Deadband: ±5° (499 units) returns upright (9000)
-    if deviation <= 499:
-        return 9000
-
-    deviation_rounded = deviation - (deviation % 100)
-    return (9000 + deviation_rounded) & 0xFFFF
-```
+The native LEAN formula includes a deadband with nibble interleaving and truncation. See [CTRK_FORMAT_SPECIFICATION.md Section 8.2.5](CTRK_FORMAT_SPECIFICATION.md#825-lean-angle) for the complete algorithm.
 
 ## Validation Results
 
 ### Test Coverage
 
-- **Files tested:** 42 CTRK files
+- **Files tested:** 47 CTRK files (42 with native comparison pairs)
 - **Date range:** July 2025 - October 2025
-- **Total records:** 420,705 telemetry points
+- **Total records:** 420K+ telemetry points
 
 ### Analog Channels Comparison (min/max/avg across all files)
 
@@ -215,11 +167,11 @@ def compute_lean_native(data: bytes) -> int:
 ## Changelog
 
 ### 2026-01-27
-- Validated 42 CTRK files across 4 months
-- **Fully decoded CAN timestamp structure** (8 bytes: sec, min, hour, weekday, day, month, year)
-- Discovered `E9 07` = year 2025 (uint16 little-endian), not a magic number
+- Validated 47 CTRK files across 4 months (42 with native comparison pairs)
+- Documented 10-byte record timestamp structure (millis + date/time fields)
+- Documented year encoding as uint16 LE (e.g., 2025 = 0x07E9)
 - Corrected ABS bit order (R_ABS=bit0, F_ABS=bit1)
-- Full channel validation completed (21 channels, 420K+ records)
+- Full channel validation completed (22 channels, 420K+ records)
 
 ### 2026-01-26
 - Initial validation with single test file

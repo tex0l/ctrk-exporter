@@ -19,7 +19,7 @@ import sys
 import time
 from pathlib import Path
 from collections import defaultdict
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict
 
 
 # Channel comparison tolerances

@@ -77,6 +77,6 @@
 | Boolean channels | **99.6-100%** |
 | Gear | **99.8%** |
 | Files tested | **47** |
-| Channels validated | **21/21** |
+| Channels validated | **22/22** |
 
 **RPM gap explanation:** The ~17% RPM mismatch is within-lap emission grid divergence caused by the native per-lap re-reading architecture vs Python's single-pass approach. Not a data quality issue — all RPM values are correct, but emitted at slightly different timestamps.

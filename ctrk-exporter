@@ -74,7 +74,7 @@ def cmd_parse(args):
         output_path = output_dir / f"{input_path.stem}_parsed.csv"
 
         print(f"[{i+1}/{len(input_files)}] Parsing {input_path.name}...")
-        parser = CTRKParser(str(input_path))
+        parser = CTRKParser(str(input_path), native_mode=args.native)
         parser.parse()
 
         # Export
@@ -507,6 +507,7 @@ Examples:
     parse_parser.add_argument("input", nargs='+', help="Input CTRK file(s)")
     parse_parser.add_argument("-o", "--output", help="Output directory (default: output/<timestamp>/)")
     parse_parser.add_argument("--raw", action="store_true", help="Also export raw uncalibrated values")
+    parse_parser.add_argument("--native", action="store_true", help="Native-compatible per-lap mode (type-5 lap detection, state reset per lap)")
 
     # Graph command
     graph_parser = subparsers.add_parser("graph", help="Generate graphs from parsed CSV")

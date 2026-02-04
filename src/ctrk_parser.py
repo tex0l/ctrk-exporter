@@ -296,6 +296,7 @@ CAN_DLC = {
     0x0226: 7,
     0x0227: 3,
     0x0511: 8,
+    0x051b: 8,
 }
 
 
@@ -334,12 +335,12 @@ class TelemetryRecord:
     fuel: int = 0
 
     # IMU (raw)
-    lean: int = 9000  # Default: upright
-    pitch: int = 30000  # Default: 0 deg/s
+    lean: int = 0
+    pitch: int = 0
 
     # Acceleration (raw)
-    acc_x: int = 7000  # Default: 0 G
-    acc_y: int = 7000  # Default: 0 G
+    acc_x: int = 0
+    acc_y: int = 0
 
     # Brakes (raw)
     front_brake: int = 0
@@ -363,8 +364,9 @@ class CTRKParser:
 
     MAGIC = b'HEAD'
 
-    def __init__(self, filepath: str):
+    def __init__(self, filepath: str, native_mode: bool = False):
         self.filepath = Path(filepath)
+        self.native_mode = native_mode
         self.data = b''
         self.records: List[TelemetryRecord] = []
         self._fuel_accumulator = [0]  # Use list for mutable reference
@@ -373,8 +375,8 @@ class CTRKParser:
             'water_temp': 0, 'intake_temp': 0,
             'front_speed': 0, 'rear_speed': 0,
             'front_brake': 0, 'rear_brake': 0,
-            'acc_x': 7000, 'acc_y': 7000,
-            'lean': 9000, 'pitch': 30000,
+            'acc_x': 0, 'acc_y': 0,
+            'lean': 0, 'pitch': 0,
             'f_abs': False, 'r_abs': False,
             'tcs': 0, 'scs': 0, 'lif': 0, 'launch': 0,
             'fuel': 0,
@@ -402,7 +404,10 @@ class CTRKParser:
         else:
             print("  Warning: Could not parse finish line from header, all records will be lap 1")
 
-        self._parse_data_section()
+        if self.native_mode:
+            self._parse_perlap()
+        else:
+            self._parse_data_section()
 
         return self.records
 
@@ -694,11 +699,14 @@ class CTRKParser:
                     else:
                         checksum_failures += 1
 
-            # === Emission check AFTER payload (100ms interval) ===
-            # Emit after processing the payload so the current record's
-            # data is included in the emitted state.
-            # Emit once a GPRMC sentence has been seen (even with 'V' status).
-            # Uses sentinel position (9999, 9999) until GPS fix is acquired.
+            elif rec_type == 5:
+                # Lap marker record: re-align emission clock.
+                # Native GetSensorsRecordData is called per-lap with memset(0),
+                # which zeroes prev_emitted_epoch_ms at each lap boundary.
+                # This re-aligns the 100ms emission grid at every lap start.
+                last_emitted_ms = current_epoch_ms
+
+            # === Emission check after payload (100ms interval) ===
             if has_gprmc and current_epoch_ms - last_emitted_ms >= 100:
                 self._check_lap_crossing(current_lat, current_lon)
                 record = self._create_record(
@@ -723,6 +731,200 @@ class CTRKParser:
             print(f"  Rejected {checksum_failures} GPRMC sentences (bad checksum)")
         print(f"  Built {len(self.records)} telemetry records")
         print(f"  Detected {self._current_lap} laps")
+
+    def _scan_lap_boundaries(self) -> list:
+        """Scan data section for type-5 Lap marker records.
+
+        Returns list of byte offsets where each type-5 record starts.
+        Matches native fcn.0000a430 lap counter at 0xa4c9.
+        """
+        data_start = self._find_data_start()
+        pos = data_start
+        boundaries = []
+
+        while pos + 14 <= len(self.data):
+            rec_type = struct.unpack_from('<H', self.data, pos)[0]
+            total_size = struct.unpack_from('<H', self.data, pos + 2)[0]
+
+            if rec_type == 0 and total_size == 0:
+                break
+            if total_size < 14 or total_size > 500 or rec_type not in (1, 2, 3, 4, 5):
+                break
+            if pos + total_size > len(self.data):
+                break
+
+            if rec_type == 5:
+                boundaries.append(pos)
+
+            pos += total_size
+
+        return boundaries
+
+    def _parse_perlap(self):
+        """Per-lap parsing matching native GetSensorsRecordData behavior.
+
+        Processes each lap independently with full state reset, matching
+        the native library's per-lap architecture where GetSensorsRecordData
+        is called once per lap with memset(0) at entry.
+        """
+        data_start = self._find_data_start()
+        data_end = len(self.data)
+        type5_offsets = self._scan_lap_boundaries()
+
+        # Build lap ranges: [(start_offset, end_offset), ...]
+        # Matches moveToLapLogRecorOffset(lapIndex) at 0xed50:
+        #   lapIndex=0 -> data_start (before any type-5)
+        #   lapIndex=N -> position after the Nth type-5 record
+        lap_ranges = []
+
+        if len(type5_offsets) == 0:
+            lap_ranges.append((data_start, data_end))
+        else:
+            # Lap 1: data_start to first type-5
+            lap_ranges.append((data_start, type5_offsets[0]))
+
+            # Subsequent laps: from after one type-5 to the next
+            for i in range(len(type5_offsets)):
+                t5_pos = type5_offsets[i]
+                t5_size = struct.unpack_from('<H', self.data, t5_pos + 2)[0]
+                start_after_t5 = t5_pos + t5_size
+
+                if i + 1 < len(type5_offsets):
+                    end = type5_offsets[i + 1]
+                else:
+                    end = data_end
+
+                lap_ranges.append((start_after_t5, end))
+
+        total_laps = len(lap_ranges)
+        print(f"  Native mode: {total_laps} laps ({len(type5_offsets)} type-5 markers)")
+
+        for lap_idx, (start, end) in enumerate(lap_ranges):
+            self._parse_lap_range(start, end, lap_idx + 1)
+
+        print(f"  Built {len(self.records)} telemetry records")
+        print(f"  Processed {total_laps} laps")
+
+    def _parse_lap_range(self, start: int, end: int, lap_number: int):
+        """Process records in [start, end) with fully reset state.
+
+        Matches native GetSensorsRecordData behavior for a single lap:
+        memset(state, 0, 0x2c8) at 0xa9fc and memset(aux, 0, 0x2e0) at 0xaa10.
+        """
+        # === CAN STATE RESET (matching memset at 0xa9fc) ===
+        self._state = {
+            'rpm': 0, 'gear': 0, 'aps': 0, 'tps': 0,
+            'water_temp': 0, 'intake_temp': 0,
+            'front_speed': 0, 'rear_speed': 0,
+            'front_brake': 0, 'rear_brake': 0,
+            'acc_x': 0, 'acc_y': 0,
+            'lean': 0, 'pitch': 0,
+            'f_abs': False, 'r_abs': False,
+            'tcs': 0, 'scs': 0, 'lif': 0, 'launch': 0,
+            'fuel': 0,
+        }
+        self._fuel_accumulator = [0]
+        self._current_lap = lap_number
+
+        # === AUXILIARY STATE RESET (matching memset at 0xaa10) ===
+        prev_ts_bytes = None
+        prev_epoch_ms = 0
+        current_epoch_ms = 0
+        last_emitted_ms = None
+
+        current_lat = 9999.0
+        current_lon = 9999.0
+        current_speed_knots = 0.0
+        has_gprmc = False
+
+        gps_count = 0
+        can_count = 0
+        checksum_failures = 0
+
+        # === RECORD PROCESSING LOOP ===
+        pos = start
+        while pos + 14 <= end:
+            rec_type = struct.unpack_from('<H', self.data, pos)[0]
+            total_size = struct.unpack_from('<H', self.data, pos + 2)[0]
+
+            if rec_type == 0 and total_size == 0:
+                break
+            if total_size < 14 or total_size > 500 or rec_type not in (1, 2, 3, 4, 5):
+                break
+            if pos + total_size > end:
+                break
+
+            ts_bytes = self.data[pos + 4:pos + 14]
+            payload = self.data[pos + 14:pos + total_size]
+
+            # --- Timestamp computation (GetTimeDataEx) ---
+            if prev_ts_bytes is None or ts_bytes != prev_ts_bytes:
+                if prev_ts_bytes is None:
+                    current_epoch_ms = self._get_time_data(ts_bytes)
+                elif ts_bytes[2:10] == prev_ts_bytes[2:10]:
+                    prev_millis = prev_ts_bytes[0] | (prev_ts_bytes[1] << 8)
+                    curr_millis = ts_bytes[0] | (ts_bytes[1] << 8)
+                    current_epoch_ms = curr_millis + (prev_epoch_ms - prev_millis)
+                    if curr_millis < prev_millis:
+                        current_epoch_ms += 1000
+                else:
+                    current_epoch_ms = self._get_time_data(ts_bytes)
+
+                prev_epoch_ms = current_epoch_ms
+                prev_ts_bytes = ts_bytes
+
+            if last_emitted_ms is None:
+                last_emitted_ms = current_epoch_ms
+
+            # --- Payload processing ---
+            if rec_type == 1 and len(payload) >= 5:
+                can_id = struct.unpack_from('<H', payload, 0)[0]
+                can_data = payload[5:]
+                if can_id == 0x023E and len(can_data) >= 4:
+                    parse_can_0x023e(can_data, self._state, self._fuel_accumulator)
+                elif can_id in CAN_HANDLERS:
+                    CAN_HANDLERS[can_id](can_data, self._state)
+                can_count += 1
+
+            elif rec_type == 2 and len(payload) > 6:
+                sentence = payload.decode('ascii', errors='replace').rstrip('\r\n\x00')
+                if sentence.startswith('$GPRMC'):
+                    if self._validate_nmea_checksum(sentence):
+                        gps_data = self._parse_gprmc_sentence(sentence)
+                        if gps_data:
+                            current_lat = gps_data['latitude']
+                            current_lon = gps_data['longitude']
+                            current_speed_knots = gps_data['speed_knots']
+                        if not has_gprmc:
+                            has_gprmc = True
+                            record = self._create_record(
+                                last_emitted_ms, current_lat, current_lon,
+                                current_speed_knots)
+                            self.records.append(record)
+                            gps_count += 1
+                    else:
+                        checksum_failures += 1
+
+            # Type-5 records within a lap range are ignored
+            # (boundaries are pre-computed by _scan_lap_boundaries)
+
+            # --- Emission check (100ms interval) ---
+            if has_gprmc and current_epoch_ms - last_emitted_ms >= 100:
+                record = self._create_record(
+                    current_epoch_ms, current_lat, current_lon,
+                    current_speed_knots)
+                self.records.append(record)
+                gps_count += 1
+                last_emitted_ms = current_epoch_ms
+
+            pos += total_size
+
+        # Final emission for this lap
+        if has_gprmc and last_emitted_ms is not None:
+            record = self._create_record(
+                current_epoch_ms, current_lat, current_lon, current_speed_knots)
+            self.records.append(record)
+            gps_count += 1
 
     def export_csv(self, output_path: str):
         """Export records to CSV matching native library format."""

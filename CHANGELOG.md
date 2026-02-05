@@ -1,6 +1,16 @@
 # Changelog
 
-## v0.3.0 — 5 février 2026 (état actuel)
+## v0.3.1 — 5 février 2026 (état actuel)
+
+Parser v7 — 1031 lignes | Spec v2.1 | 94.9% match rate (47 fichiers, 22 canaux validés vs natif)
+
+### Parser
+
+- **Lean signé** (`lean_signed_deg`) : nouveau canal préservant la direction de l'inclinaison (négatif/positif) au lieu de la valeur absolue produite par le natif. Même formule de calibration, même deadband et arrondi, mais le signe de `sum_val - 9000` est conservé. Le canal `lean_deg` (absolu, compatible natif) est inchangé.
+
+---
+
+## v0.3.0 — 5 février 2026
 
 Parser v7 — 1021 lignes | Spec v2.1 | 94.9% match rate (47 fichiers, 22 canaux)
 

@@ -55,7 +55,8 @@ def create_all_channels_graph(df: pd.DataFrame, output_path: Path, lap: int = No
             {'col': 'gps_speed_kmh', 'label': 'GPS Speed', 'unit': 'km/h', 'color': '#1dd1a1'},
         ],
         'Chassis': [
-            {'col': 'lean_deg', 'label': 'Lean', 'unit': '°', 'color': '#ff9ff3'},
+            {'col': 'lean_deg', 'label': 'Lean (abs)', 'unit': '°', 'color': '#ff9ff3'},
+            {'col': 'lean_signed_deg', 'label': 'Lean (signed)', 'unit': '°', 'color': '#ee5a6f'},
             {'col': 'pitch_deg_s', 'label': 'Pitch', 'unit': '°/s', 'color': '#f368e0'},
         ],
         'Acceleration': [

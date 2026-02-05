@@ -244,10 +244,16 @@ def parse_can_0x0258(data: bytes, state: dict):
     # Apply deadband (~5 degrees)
     if deviation <= 499:
         state['lean'] = 9000  # Upright
+        state['lean_signed'] = 9000
     else:
         # Round to nearest degree
         deviation_rounded = deviation - (deviation % 100)
         state['lean'] = (9000 + deviation_rounded) & 0xFFFF
+        # Signed: preserve direction (sum_val < 9000 = negative lean)
+        if sum_val < 9000:
+            state['lean_signed'] = 9000 - deviation_rounded
+        else:
+            state['lean_signed'] = 9000 + deviation_rounded
 
     # Pitch is straightforward
     state['pitch'] = (data[6] << 8) | data[7]
@@ -319,6 +325,7 @@ class TelemetryRecord:
 
     # IMU (raw)
     lean: int = 0
+    lean_signed: int = 0
     pitch: int = 0
 
     # Acceleration (raw)
@@ -359,7 +366,7 @@ class CTRKParser:
             'front_speed': 0, 'rear_speed': 0,
             'front_brake': 0, 'rear_brake': 0,
             'acc_x': 0, 'acc_y': 0,
-            'lean': 0, 'pitch': 0,
+            'lean': 0, 'lean_signed': 0, 'pitch': 0,
             'f_abs': False, 'r_abs': False,
             'tcs': 0, 'scs': 0, 'lif': 0, 'launch': 0,
             'fuel': 0,
@@ -547,6 +554,7 @@ class CTRKParser:
             acc_x=self._state['acc_x'],
             acc_y=self._state['acc_y'],
             lean=self._state['lean'],
+            lean_signed=self._state['lean_signed'],
             pitch=self._state['pitch'],
             f_abs=self._state['f_abs'],
             r_abs=self._state['r_abs'],
@@ -801,7 +809,7 @@ class CTRKParser:
             'front_speed': 0, 'rear_speed': 0,
             'front_brake': 0, 'rear_brake': 0,
             'acc_x': 0, 'acc_y': 0,
-            'lean': 0, 'pitch': 0,
+            'lean': 0, 'lean_signed': 0, 'pitch': 0,
             'f_abs': False, 'r_abs': False,
             'tcs': 0, 'scs': 0, 'lif': 0, 'launch': 0,
             'fuel': 0,
@@ -908,7 +916,7 @@ class CTRKParser:
         fieldnames = [
             'lap', 'time_ms', 'latitude', 'longitude', 'gps_speed_kmh',
             'rpm', 'throttle_grip', 'throttle', 'water_temp', 'intake_temp',
-            'front_speed_kmh', 'rear_speed_kmh', 'fuel_cc', 'lean_deg', 'pitch_deg_s',
+            'front_speed_kmh', 'rear_speed_kmh', 'fuel_cc', 'lean_deg', 'lean_signed_deg', 'pitch_deg_s',
             'acc_x_g', 'acc_y_g', 'front_brake_bar', 'rear_brake_bar', 'gear',
             'f_abs', 'r_abs', 'tcs', 'scs', 'lif', 'launch'
         ]
@@ -933,6 +941,7 @@ class CTRKParser:
                     'rear_speed_kmh': f"{Calibration.wheel_speed_kmh(r.rear_speed):.1f}",
                     'fuel_cc': f"{Calibration.fuel(r.fuel):.2f}",
                     'lean_deg': f"{Calibration.lean(r.lean):.1f}",
+                    'lean_signed_deg': f"{Calibration.lean(r.lean_signed):.1f}",
                     'pitch_deg_s': f"{Calibration.pitch(r.pitch):.1f}",
                     'acc_x_g': f"{Calibration.acceleration(r.acc_x):.2f}",
                     'acc_y_g': f"{Calibration.acceleration(r.acc_y):.2f}",
@@ -959,7 +968,7 @@ class CTRKParser:
         fieldnames = [
             'lap', 'time_ms', 'latitude', 'longitude', 'gps_speed_knots',
             'rpm_raw', 'aps_raw', 'tps_raw', 'wt_raw', 'intt_raw',
-            'fspeed_raw', 'rspeed_raw', 'fuel_raw', 'lean_raw', 'pitch_raw',
+            'fspeed_raw', 'rspeed_raw', 'fuel_raw', 'lean_raw', 'lean_signed_raw', 'pitch_raw',
             'accx_raw', 'accy_raw', 'fpress_raw', 'rpress_raw', 'gear',
             'f_abs', 'r_abs', 'tcs', 'scs', 'lif', 'launch'
         ]
@@ -984,6 +993,7 @@ class CTRKParser:
                     'rspeed_raw': r.rear_speed,
                     'fuel_raw': r.fuel,
                     'lean_raw': r.lean,
+                    'lean_signed_raw': r.lean_signed,
                     'pitch_raw': r.pitch,
                     'accx_raw': r.acc_x,
                     'accy_raw': r.acc_y,

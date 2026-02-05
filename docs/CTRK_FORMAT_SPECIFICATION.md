@@ -994,7 +994,7 @@ The native library has a bug where a millis wrapping event can cause it to suppr
 ### 13.1 CSV Columns
 
 ```csv
-lap,time_ms,latitude,longitude,gps_speed_kmh,rpm,throttle_grip,throttle,water_temp,intake_temp,front_speed_kmh,rear_speed_kmh,fuel_cc,lean_deg,pitch_deg_s,acc_x_g,acc_y_g,front_brake_bar,rear_brake_bar,gear,f_abs,r_abs,tcs,scs,lif,launch
+lap,time_ms,latitude,longitude,gps_speed_kmh,rpm,throttle_grip,throttle,water_temp,intake_temp,front_speed_kmh,rear_speed_kmh,fuel_cc,lean_deg,lean_signed_deg,pitch_deg_s,acc_x_g,acc_y_g,front_brake_bar,rear_brake_bar,gear,f_abs,r_abs,tcs,scs,lif,launch
 ```
 
 ### 13.2 Field Definitions
@@ -1014,7 +1014,8 @@ lap,time_ms,latitude,longitude,gps_speed_kmh,rpm,throttle_grip,throttle,water_te
 | front_speed_kmh | float | km/h | Front wheel speed |
 | rear_speed_kmh | float | km/h | Rear wheel speed |
 | fuel_cc | float | cc | Cumulative fuel consumption (resets per lap) |
-| lean_deg | float | degrees | Lean angle (0 = upright, positive = right) |
+| lean_deg | float | degrees | Lean angle absolute value (native-compatible, always >= 0) |
+| lean_signed_deg | float | degrees | Lean angle with direction preserved (Python parser only) |
 | pitch_deg_s | float | deg/s | Pitch rate |
 | acc_x_g | float | G | Longitudinal acceleration |
 | acc_y_g | float | G | Lateral acceleration |

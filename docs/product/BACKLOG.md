@@ -9,7 +9,7 @@
 
 ### What Works Today
 
-- **Core parser** (`src/ctrk_parser.py`, 1048 lines, zero dependencies): Parses all 21 telemetry channels from CTRK binary files at 10 Hz. Validated against the native library at 94.9% overall match rate across 47 files and 420K+ telemetry records. All CAN data extraction (byte positions, bit masks, formulas) is 100% correct per disassembly.
+- **Core parser** (`src/ctrk_parser.py`, 1048 lines, zero dependencies): Parses all 22 telemetry channels from CTRK binary files at 10 Hz. Validated against the native library at 94.9% overall match rate across 47 files and 420K+ telemetry records. All CAN data extraction (byte positions, bit masks, formulas) is 100% correct per disassembly.
 - **Two parsing modes**: Default continuous mode (better data quality, no impossible values at lap boundaries) and `--native` per-lap mode (matches native library architecture for validation).
 - **Lap detection**: GPS finish-line crossing from header coordinates. Agrees with native in 39/42 files.
 - **CSV export**: 26-column output with calibrated engineering units. Optional raw (uncalibrated) export for comparison.
@@ -25,11 +25,10 @@
 3. **No lap time summary**: Users must compute lap times from timestamps manually. The native library has `GetLapTimeRecordData()` but the parser does not expose lap timing.
 4. **Limited export formats**: CSV only. No JSON, no GPX (for GPS track overlay), no direct import into popular telemetry tools (MoTeC i2, RaceStudio 3, AiM).
 5. **Visualization is basic**: Single-file PNG per lap. No interactive charts, no lap comparison overlay, no track map.
-6. **No CCT file support**: The `.CCT` extension is mentioned in the project goal but not yet tested or documented.
-7. **RPM match rate ceiling**: 83% RPM match in continuous mode due to architectural emission grid divergence. Not a data quality issue (all values are correct), but limits validation confidence.
-8. **No error reporting or diagnostics**: Parser fails silently on corrupt files. No structured error output, no file health report.
-9. **No multi-session analysis**: Each file is parsed independently. No session comparison, no trend tracking across sessions.
-10. **Platform limitation**: Android bridge requires macOS ARM with Android SDK. Graph generation requires virtual environment setup.
+6. **RPM match rate ceiling**: 83% RPM match in continuous mode due to architectural emission grid divergence. Not a data quality issue (all values are correct), but limits validation confidence.
+7. **No error reporting or diagnostics**: Parser fails silently on corrupt files. No structured error output, no file health report.
+8. **No multi-session analysis**: Each file is parsed independently. No session comparison, no trend tracking across sessions.
+9. **Platform limitation**: Android bridge requires macOS ARM with Android SDK. Graph generation requires virtual environment setup.
 
 ### User Pain Points (by Persona)
 
@@ -82,8 +81,7 @@
 |---|------|-------|--------|-------|
 | 4 | Interactive Lap Comparison Dashboard | HIGH | HIGH | Web-based or Jupyter lap overlay with track map. Depends on EPIC-001 and EPIC-003. |
 | 5 | Multi-Session Trend Analysis | MEDIUM | HIGH | Cross-session comparison (lap time progression, consistency metrics). Depends on EPIC-003. |
-| 6 | CCT File Support and Format Variants | LOW | MEDIUM | Test and document .CCT files. May be identical format with different extension. |
-| 7 | File Recovery and Diagnostics | LOW | MEDIUM | Implement equivalents of native `DamageRecoveryLogFile()` and file health reporting. |
+| 6 | File Recovery and Diagnostics | LOW | MEDIUM | Implement equivalents of native `DamageRecoveryLogFile()` and file health reporting. |
 
 ### Won't Have (Out of Scope)
 

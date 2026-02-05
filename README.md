@@ -1,6 +1,6 @@
 # CTRK Parser
 
-Two implementations for parsing Yamaha Y-Trac telemetry files (.CTRK/.CCT):
+Two implementations for parsing Yamaha Y-Trac telemetry files (.CTRK):
 
 1. **Python parser** - Pure Python, no dependencies, works everywhere
 2. **Native converter** - Uses the official Y-Trac library via Android emulator (100% accuracy)
@@ -116,9 +116,9 @@ source .venv/bin/activate
 ./ctrk-exporter android clean                     # Clean build artifacts
 ```
 
-## Telemetry Channels (21)
+## Telemetry Channels (22)
 
-### Analog Channels (15)
+### Analog Channels (16)
 
 | Column | Description | Unit | Formula |
 |--------|-------------|------|---------|
@@ -128,7 +128,8 @@ source .venv/bin/activate
 | front_speed_kmh | Front wheel speed | km/h | (raw / 64.0) × 3.6 |
 | rear_speed_kmh | Rear wheel speed | km/h | (raw / 64.0) × 3.6 |
 | gear | Gear position | 0-6 | direct |
-| lean_deg | Lean angle | ° | (raw / 100.0) - 90.0 |
+| lean_deg | Lean angle (absolute) | ° | (raw / 100.0) - 90.0 |
+| lean_signed_deg | Lean angle (signed) | ° | (raw / 100.0) - 90.0 |
 | pitch_deg_s | Pitch rate | °/s | (raw / 100.0) - 300.0 |
 | front_brake_bar | Front brake pressure | bar | raw / 32.0 |
 | rear_brake_bar | Rear brake pressure | bar | raw / 32.0 |

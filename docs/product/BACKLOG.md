@@ -9,7 +9,7 @@
 
 ### What Works Today
 
-- **Core parser** (`src/ctrk_parser.py`, 1048 lines, zero dependencies): Parses all 22 telemetry channels from CTRK binary files at 10 Hz. Validated against the native library at 94.9% overall match rate across 47 files and 420K+ telemetry records. All CAN data extraction (byte positions, bit masks, formulas) is 100% correct per disassembly.
+- **Core parser** (`src/ctrk_parser.py`, 1048 lines, zero dependencies): Parses all 21 telemetry channels from CTRK binary files at 10 Hz. Validated against the native library at 94.9% overall match rate across 47 files and 420K+ telemetry records. All CAN data extraction (byte positions, bit masks, formulas) is 100% correct per disassembly.
 - **Two parsing modes**: Default continuous mode (better data quality, no impossible values at lap boundaries) and `--native` per-lap mode (matches native library architecture for validation).
 - **Lap detection**: GPS finish-line crossing from header coordinates. Agrees with native in 39/42 files.
 - **CSV export**: 26-column output with calibrated engineering units. Optional raw (uncalibrated) export for comparison.

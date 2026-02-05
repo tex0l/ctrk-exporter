@@ -116,9 +116,9 @@ source .venv/bin/activate
 ./ctrk-exporter android clean                     # Clean build artifacts
 ```
 
-## Telemetry Channels (22)
+## Telemetry Channels (21)
 
-### Analog Channels (16)
+### Analog Channels (15)
 
 | Column | Description | Unit | Formula |
 |--------|-------------|------|---------|
@@ -129,7 +129,6 @@ source .venv/bin/activate
 | rear_speed_kmh | Rear wheel speed | km/h | (raw / 64.0) × 3.6 |
 | gear | Gear position | 0-6 | direct |
 | lean_deg | Lean angle (absolute) | ° | (raw / 100.0) - 90.0 |
-| lean_signed_deg | Lean angle (signed) | ° | (raw / 100.0) - 90.0 |
 | pitch_deg_s | Pitch rate | °/s | (raw / 100.0) - 300.0 |
 | front_brake_bar | Front brake pressure | bar | raw / 32.0 |
 | rear_brake_bar | Rear brake pressure | bar | raw / 32.0 |
@@ -159,6 +158,12 @@ source .venv/bin/activate
 | latitude | GPS latitude | degrees |
 | longitude | GPS longitude | degrees |
 | gps_speed_kmh | GPS speed | km/h |
+
+### Derived Fields (Python parser only)
+
+| Column | Description | Unit | Note |
+|--------|-------------|------|------|
+| lean_signed_deg | Lean angle with direction | ° | Same CAN 0x0258 data as lean_deg, but preserves the sign (negative/positive) instead of taking the absolute value. Not present in native library output. |
 
 ## Output Structure
 

@@ -2,40 +2,7 @@
 
 **Version:** 2.1
 **Date:** 2026-02-04
-**Status:** Validated — 47 files tested, 22 channels, 94.9% overall match rate against native library (RPM: 83.0%)
-**Source:** Reverse-engineered from Yamaha Y-Trac DataViewer Android Application (v1.3.8), `libSensorsRecordIF.so` disassembly via radare2
-
----
-
-## Changelog
-
-### v2.1 (2026-02-04)
-- Added Section 6.7: Native-Only Behaviors — documented three-band time delta check (10ms secondary threshold at 0xaf1b) and row counter limit (72000 records at 0xaece) from native library
-- Enhanced CAN 0x0209 documentation: added disassembly address for gear 7 rejection (`cmp eax, 7; je skip` at 0xe163)
-- Enhanced CAN 0x051b documentation: added handler address (0xe102) and storage offset (0x2c8)
-- Verified spec accuracy for: millis wrapping native behavior (5.3), initial state zeros (6.1), LEAN truncation (8.2.5), lap detection comparison (10.4), type-5 payload decode (4.2), CAN padding/GPS sentence wording (4.4/4.5)
-- Validated against parser v7 (1048 lines) including `--native` per-lap mode
-
-### v2.0 (2026-01-29)
-- **BREAKING:** Complete rewrite. The data section uses structured 14-byte record headers, NOT pattern matching. Previous versions described a fundamentally incorrect parsing approach.
-- Documented the full 10-byte timestamp structure: `[millis(2)][sec][min][hour][wday][day][month][year(2)]`
-- Documented GetTimeDataEx incremental timestamp PLL algorithm
-- Documented millis wrapping edge case (non-atomic hardware timestamp capture)
-- Documented emission logic: 100ms interval, zero-order hold, GPS gating
-- Documented structured variable-length header entries at offset 0x34
-- Documented CAN payload structure: `[canid(2)][pad(2)][DLC(1)][data(DLC)]`
-- Documented all 5 record types (CAN, GPS, unused, AIN, Lap marker)
-- Documented void GPS handling and sentinel coordinates (9999, 9999)
-- Documented fuel delta accumulator with lap-boundary reset
-- Added complete hex-level worked examples from real files
-- Validated across 47 files (July-October 2025), 420K+ telemetry records
-
-### v1.3 (2026-01-27)
-- Decoded CAN timestamp structure (8 bytes, without millis)
-- Corrected ABS bit order: R_ABS=bit0, F_ABS=bit1
-
-### v1.0-v1.2 (2026-01-24 to 2026-01-26)
-- Initial specification based on pattern matching (superseded by v2.0)
+**Source:** Reverse-engineered from Yamaha Y-Trac CCU data logger files
 
 ---
 
@@ -43,7 +10,7 @@
 
 This document specifies the CTRK binary file format used by the Yamaha Y-Trac CCU (Communication Control Unit) motorcycle data logger. CTRK files store telemetry data recorded during track sessions, including GPS position, engine parameters, IMU dynamics, brake inputs, and electronic control system states across 21 channels at 10 Hz.
 
-This specification is intended to be sufficient for a developer to implement a fully functional parser from scratch, with no access to the proprietary native library.
+This specification is intended to be sufficient for a developer to implement a fully functional parser from scratch.
 
 ## Table of Contents
 
@@ -55,12 +22,11 @@ This specification is intended to be sufficient for a developer to implement a f
 6. [Emission Logic](#6-emission-logic)
 7. [GPS NMEA Records](#7-gps-nmea-records)
 8. [CAN Bus Messages](#8-can-bus-messages)
-9. [Calibration Factors](#9-calibration-factors)
+9. [Calibration Formulas](#9-calibration-formulas)
 10. [Lap Detection](#10-lap-detection)
 11. [Footer Section](#11-footer-section)
 12. [Edge Cases](#12-edge-cases)
 13. [Output Format](#13-output-format)
-14. [References](#14-references)
 
 ---
 
@@ -100,7 +66,6 @@ This specification covers:
 | TPS | Throttle Position Sensor — actual throttle butterfly valve position |
 | IMU | Inertial Measurement Unit — lean angle and pitch rate sensor |
 | DLC | Data Length Code — number of data bytes in a CAN frame |
-| PLL | Phase-Locked Loop — incremental timestamp tracking algorithm |
 
 ---
 
@@ -261,21 +226,6 @@ Hex:  01 00 1b 00 6f 03 22 15 0c 02 1d 07 e9 07  [payload...]
 
 Timestamp: 2025-07-29 12:21:34.879 UTC. Payload: 13 bytes (27 - 14).
 
-#### Worked Example: GPS Record
-
-```
-Hex:  02 00 56 00 7b 03 22 15 0c 02 1d 07 e9 07  [payload...]
-```
-
-| Field | Hex | Value |
-|-------|-----|-------|
-| record_type | `02 00` | 2 (GPS/NMEA) |
-| total_size | `56 00` | 86 bytes |
-| millis | `7b 03` | 891 |
-| (rest) | ... | 2025-07-29 12:21:34.891 UTC |
-
-Payload: 72 bytes — an ASCII GPRMC sentence.
-
 ### 4.2 Record Types
 
 | Type | Name | Payload Content | Parsing Action |
@@ -286,14 +236,12 @@ Payload: 72 bytes — an ASCII GPRMC sentence.
 | 4 | AIN | Analog input (not observed) | Skip (read and discard) |
 | 5 | Lap | Lap marker from CCU hardware | Informational (see note) |
 
-**Note on type 5 (Lap):** The CCU emits these records at hardware-detected lap crossings. The parser does not use these for lap detection — it implements its own software-based GPS crossing algorithm (see [Section 10](#10-lap-detection)). The payload is 8 bytes:
+**Note on type 5 (Lap):** The CCU emits these records at hardware-detected lap crossings. The payload is 8 bytes:
 
 | Offset | Size | Type | Description |
 |--------|------|------|-------------|
 | 0 | 4 | uint32 LE | Lap elapsed time in milliseconds |
 | 4 | 4 | — | Always zero (reserved) |
-
-Verified across 309 type-5 records — decoded values match realistic lap times (60-120 seconds).
 
 ### 4.3 End-of-Data Detection
 
@@ -333,7 +281,7 @@ Payload:  11 05 00 00 08 55 d1 d0 d1 d0 2c 00 28
 
 ### 4.5 Record Type 2: GPS Payload Format
 
-The payload is an ASCII string containing an NMEA GPRMC sentence (exclusively — no other sentence types observed across 423,103 GPS records in 47 files), terminated with `\r\n` and/or null bytes. See [Section 7](#7-gps-nmea-records) for parsing details.
+The payload is an ASCII string containing an NMEA GPRMC sentence, terminated with `\r\n` and/or null bytes. See [Section 7](#7-gps-nmea-records) for parsing details.
 
 #### Worked Example
 
@@ -363,9 +311,9 @@ $GPRMC,122135.000,A,4757.0410,N,00012.5240,E,5.14,334.60,290725,,,A*65\r\n
 
 ## 5. Timestamp Computation
 
-Each record's 10-byte timestamp must be converted to Unix epoch milliseconds. The native library uses an optimized algorithm called **GetTimeDataEx** that avoids expensive `mktime` calls for records within the same second.
+Each record's 10-byte timestamp must be converted to Unix epoch milliseconds.
 
-### 5.1 Full Computation (GetTimeData)
+### 5.1 Full Computation
 
 When the second changes (or for the very first record), compute the full timestamp:
 
@@ -375,13 +323,9 @@ epoch_ms = mktime(year, month, day, hours, minutes, seconds) * 1000 + millis
 
 Where `mktime` converts calendar time to Unix epoch seconds (UTC).
 
-### 5.2 Incremental Computation (GetTimeDataEx)
+### 5.2 Incremental Computation
 
-The parser maintains two state variables across ALL record types:
-- `prev_ts_bytes`: the raw 10-byte timestamp of the previous record
-- `prev_epoch_ms`: the computed epoch_ms of the previous record
-
-For each new record:
+For performance, timestamps can be computed incrementally when records share the same second:
 
 ```
 if prev_ts_bytes is NULL:
@@ -390,7 +334,7 @@ if prev_ts_bytes is NULL:
 
 else if ts_bytes == prev_ts_bytes:
     // Identical timestamp: reuse previous value
-    epoch_ms = prev_epoch_ms  // (no update to prev_ variables)
+    epoch_ms = prev_epoch_ms
 
 else if ts_bytes[2:10] == prev_ts_bytes[2:10]:
     // Same second, different millis: incremental update
@@ -406,7 +350,7 @@ else:
     // Different second: full recomputation
     epoch_ms = GetTimeData(ts_bytes)
 
-// Update state (only when ts_bytes changed)
+// Update state
 prev_epoch_ms = epoch_ms
 prev_ts_bytes = ts_bytes
 ```
@@ -425,62 +369,27 @@ Record N+1: millis=8,   sec=47  →  epoch = ...107008  (991ms BACKWARDS!)
 
 **Detection:** `curr_millis < prev_millis` within the same second (bytes 2-9 are identical).
 
-**Fix:** Add 1000ms to the computed epoch_ms to compensate for the un-incremented second field. This transforms the backwards jump into a correct forward progression:
-
-```
-Record N:   epoch = ...107999
-Record N+1: epoch = ...108008  (9ms forward, correct)
-```
-
-Without this fix, the emission clock breaks because `current_epoch_ms < last_emitted_ms`, preventing further emissions until the timestamps naturally advance past the stale `last_emitted_ms`.
-
-**Native library behavior:** The native library does NOT compensate for millis wrapping. When wrapping occurs, it produces a negative time delta, emits the record with error code -2, and continues without correction. This can cause the native library to suppress emission for an entire lap (~90 seconds of data), as observed in file 20250906-161606 where native output is missing lap 6. The +1000ms compensation described above is a Python parser improvement that prevents this data loss.
+**Fix:** Add 1000ms to the computed epoch_ms to compensate for the un-incremented second field.
 
 ---
 
 ## 6. Emission Logic
 
-The parser does **not** output one record per raw CAN/GPS record. Instead, it accumulates CAN state and emits telemetry output records at fixed **100ms intervals** (10 Hz), matching the native library behavior.
+The parser does **not** output one record per raw CAN/GPS record. Instead, it accumulates CAN state and emits telemetry output records at fixed **100ms intervals** (10 Hz).
 
 ### 6.1 Zero-Order Hold
 
 Maintain a state dictionary holding the latest value for each telemetry channel. When a CAN record is processed, update the relevant channels. Values persist until overwritten by a newer CAN record with the same CAN ID.
 
-**Initial state values:**
-
-| Channel | Initial Raw Value | Calibrated Default |
-|---------|------------------|--------------------|
-| rpm | 0 | 0 RPM |
-| gear | 0 | Neutral |
-| aps | 0 | 0% |
-| tps | 0 | 0% |
-| water_temp | 0 | -30.0 C |
-| intake_temp | 0 | -30.0 C |
-| front_speed | 0 | 0.0 km/h |
-| rear_speed | 0 | 0.0 km/h |
-| front_brake | 0 | 0.0 bar |
-| rear_brake | 0 | 0.0 bar |
-| acc_x | 0 | -7.0 G |
-| acc_y | 0 | -7.0 G |
-| lean | 0 | -90.0 deg |
-| pitch | 0 | -300.0 deg/s |
-| f_abs | false | inactive |
-| r_abs | false | inactive |
-| tcs | 0 | inactive |
-| scs | 0 | inactive |
-| lif | 0 | inactive |
-| launch | 0 | inactive |
-| fuel | 0 | 0.0 cc |
-
-**Note on initial state:** The native library initializes all CAN state to zero via `memset(state, 0, 0x2c8)` at address 0xa9fc. This produces physically impossible calibrated values for some channels (e.g., -7G acceleration, -90° lean, -300°/s pitch) until real CAN data arrives. This typically affects only the first 1-2 records before CAN messages populate the state buffer. The parser matches this native behavior.
+**Initial state values:** All channels initialize to 0 (or false for booleans).
 
 ### 6.2 Emission Clock
 
 The emission logic uses two independent time trackers:
 - `last_emitted_ms`: the timestamp of the most recently emitted output record
-- `current_epoch_ms`: the timestamp of the record currently being processed (from GetTimeDataEx)
+- `current_epoch_ms`: the timestamp of the record currently being processed
 
-**Initialization:** Set `last_emitted_ms` to the `current_epoch_ms` of the **first record** (any type, not just GPS). This aligns the emission clock with the start of data.
+**Initialization:** Set `last_emitted_ms` to the `current_epoch_ms` of the **first record**.
 
 **Emission check (after processing each record's payload):**
 
@@ -495,9 +404,8 @@ if has_gprmc AND (current_epoch_ms - last_emitted_ms) >= 100:
 Output records are only emitted **after the first GPRMC sentence** is encountered. This is because GPS coordinates are required for each output record.
 
 - Track a boolean `has_gprmc`, initially false
-- Set `has_gprmc = true` upon encountering the first GPRMC sentence with a valid checksum, **regardless of fix status** (even 'V' void status counts)
-- On the first GPRMC, **immediately emit one initial record** using `last_emitted_ms` as the timestamp
-- Subsequent emissions follow the 100ms interval rule
+- Set `has_gprmc = true` upon encountering the first GPRMC sentence with a valid checksum
+- On the first GPRMC, immediately emit one initial record
 
 ### 6.4 GPS State
 
@@ -507,12 +415,9 @@ Output records are only emitted **after the first GPRMC sentence** is encountere
 | longitude | 9999.0 | Sentinel (no fix) |
 | speed_knots | 0.0 | GPS ground speed |
 
-The sentinel value (9999.0, 9999.0) matches the native library's behavior when no GPS fix has been acquired.
-
 **Update rules:**
 - Only update latitude, longitude, and speed when the GPRMC sentence has status `A` (valid fix)
 - GPRMC with status `V` (void): acknowledge it (set `has_gprmc`), but do NOT update position or speed
-- Keep emitting with sentinel coordinates until a valid fix is obtained
 
 ### 6.5 Processing Order
 
@@ -520,7 +425,7 @@ For each record in the data section:
 
 ```
 1. Read 14-byte header
-2. Compute current_epoch_ms (GetTimeDataEx)
+2. Compute current_epoch_ms
 3. Initialize last_emitted_ms if this is the first record
 4. Process payload:
    - Type 1 (CAN): update telemetry state
@@ -531,46 +436,9 @@ For each record in the data section:
 6. Advance to next record
 ```
 
-The emission check occurs **after** payload processing so that the emitted state includes the current record's data.
-
-**Type-5 emission clock reset:** The native library calls `GetSensorsRecordData` independently for each lap, zeroing `prev_emitted_epoch_ms` via `memset(0)` at each call. This re-aligns the 100ms emission grid at every lap boundary. The parser matches this behavior by resetting `last_emitted_ms` at type-5 Lap marker records, without resetting CAN state (preserving continuous telemetry across laps).
-
 ### 6.6 Final Record
 
-After the parsing loop ends, emit one final record with the last accumulated state. This captures any remaining telemetry accumulated since the last 100ms emission.
-
-### 6.7 Native-Only Behaviors (Not Implemented in Parser)
-
-The following behaviors are present in the native library's emission logic but are **not implemented** in this parser. They are documented here for completeness and as reference for future analysis.
-
-#### 6.7.1 Three-Band Time Delta Check
-
-The native library implements a three-band time delta classification in its main record processing loop. The Python parser only implements band 3 (the 100ms emission interval).
-
-```
-delta = current_epoch_ms - last_emitted_ms
-
-Band 0: delta < 0          → emit record with error code -2 (negative time)
-Band 1: delta <= 10ms      → skip record entirely (no payload processing)
-Band 2: 10ms < delta < 100 → process payload, clear a validity flag
-Band 3: delta >= 100ms     → full processing + emit record
-```
-
-**Disassembly evidence:** `cmp rcx, 10; jle skip` at 0xaf1b (band 1 threshold). `jge` at 0xaf19 for the 100ms check (band 3).
-
-**Impact:** Negligible. 97.81% of native emissions fall in band 3 (exactly 100ms intervals). Bands 1 and 2 fire in less than 2.2% of records, and band 1 records typically have identical timestamps (delta = 0ms). The "validity flag" semantics in band 2 are not fully understood.
-
-**Decision:** Not implemented. The parser processes all records regardless of time delta. This has no measurable effect on output match rate.
-
-#### 6.7.2 Row Counter Limit (72000)
-
-The native library enforces a maximum of 72,000 emitted records per lap. When the counter reaches this limit, the function returns with error code -3.
-
-**Disassembly evidence:** `cmp [rcx], eax; jge error_-3` at 0xaece.
-
-At 10 Hz emission rate, 72,000 records corresponds to 7,200 seconds (2 hours) of continuous recording per lap. This limit is never reached in normal track sessions (typical laps are 60-120 seconds).
-
-**Decision:** Not enforced in the parser. No test files approach this limit.
+After the parsing loop ends, emit one final record with the last accumulated state.
 
 ---
 
@@ -622,16 +490,15 @@ for each byte between '$' and '*':
 valid = (checksum == parse_hex(sentence[star_index+1 : star_index+3]))
 ```
 
-**Reject sentences with invalid checksums.** Do not update GPS state or set `has_gprmc` for rejected sentences.
+**Reject sentences with invalid checksums.**
 
 ### 7.4 Void Status Handling
 
-GPRMC sentences with status `V` (void) indicate GPS hardware is active but has no satellite fix. These sentences have empty or invalid coordinate fields.
+GPRMC sentences with status `V` (void) indicate GPS hardware is active but has no satellite fix.
 
 Parser behavior for void sentences:
 - Set `has_gprmc = true` (enables emission)
 - Do NOT update latitude, longitude, or speed (retain sentinel/previous values)
-- Emit records using current GPS state (which may be sentinel 9999.0, 9999.0)
 
 ---
 
@@ -652,7 +519,7 @@ Parser behavior for void sentences:
 | 0x0264 | Wheel Speed | 4 | Front speed, Rear speed |
 | 0x0268 | ABS Status | 6 | F_ABS, R_ABS |
 | 0x0511 | (unknown) | 8 | Not decoded |
-| 0x051b | (unknown) | 8 | Not decoded — handler at 0xe102 stores 8 raw bytes at native struct offset 0x2c8, but data is not mapped to any SensorsRecord field and not included in output |
+| 0x051b | (unknown) | 8 | Not decoded |
 
 CAN IDs not in the table above may appear in files and should be silently skipped.
 
@@ -673,7 +540,7 @@ Byte  Bits     Field   Type     Description
 ```
 
 - RPM raw: `(data[0] << 8) | data[1]`
-- Gear: `data[4] & 0x07` — value 7 is rejected as invalid (transitioning between gears). Disassembly: `cmp eax, 7; je skip` at 0xe163.
+- Gear: `data[4] & 0x07` — value 7 is rejected as invalid (transitioning between gears)
 
 #### 8.2.2 Throttle — 0x0215 (DLC=8)
 
@@ -742,7 +609,7 @@ Byte  Bits     Field   Type     Description
 
 **LEAN Decoding Algorithm:**
 
-The lean angle is encoded in a packed format across bytes 0-3, with a deadband and rounding applied:
+The lean angle is encoded in a packed format across bytes 0-3, with a deadband and truncation applied:
 
 ```python
 def decode_lean(data):
@@ -822,9 +689,9 @@ The fuel accumulator **resets to 0** at each lap boundary (finish line crossing)
 
 ---
 
-## 9. Calibration Factors
+## 9. Calibration Formulas
 
-Raw sensor values are converted to engineering units using these formulas. All formulas have been verified against the native library's calibration logic via disassembly.
+Raw sensor values are converted to engineering units using these formulas:
 
 | Channel | Raw Source | Formula | Output Unit |
 |---------|-----------|---------|-------------|
@@ -904,18 +771,9 @@ crossing = (0 <= t <= 1)
 - The first crossing marks the end of lap 1 and the start of lap 2
 - Reset the fuel accumulator to 0 at each crossing
 
-### 10.4 Native Library Comparison
+### 10.4 Initial Position
 
-The native library uses a different lap detection mechanism: it scans the data section for type-5 Lap marker records (see Section 4.2) and uses them to partition the data into per-lap segments. The two approaches agree in 39 of 42 tested files.
-
-Key differences:
-- **Lap detection:** Native uses type-5 hardware markers; Python uses GPS finish-line crossing geometry. The GPS approach is more robust — it detects laps even when type-5 records are missing or corrupt.
-- **State at lap boundaries:** Native zeroes all CAN state (`memset(state, 0, 0x2c8)`) when processing each lap independently, producing physically impossible values (e.g., -7G, -90°) in the first 1-2 records of every lap after lap 1. Python carries forward continuous state, producing physically correct values at all times.
-- **Disagreements:** In 3 of 42 files, the approaches assign records to different laps due to missing type-5 markers or boundary-edge timing differences.
-
-### 10.5 Initial Position
-
-The crossing algorithm requires a previous position. Initialize `prev_lat` and `prev_lon` to 0.0. Skip the crossing check for the first emitted record (when prev is 0.0, 0.0).
+The crossing algorithm requires a previous position. Initialize `prev_lat` and `prev_lon` to 0.0. Skip the crossing check for the first emitted record.
 
 ---
 
@@ -975,17 +833,7 @@ Files recorded when the CCU has not synchronized its RTC show a default date of 
 
 ### 12.3 Millis Wrapping
 
-See [Section 5.3](#53-millis-wrapping-hardware-edge-case). Observed once per ~7 million raw records (1 in 47 files). Without the compensation, timestamps go backwards and emission breaks for the remainder of the affected section.
-
-### 12.4 Emission Timing vs Native Library
-
-The emission clock initializes at the first record timestamp (`last_emitted_ms = current_epoch_ms`) and resets at type-5 Lap marker records (matching the native per-lap `memset(0)` behavior). This produces **identical first emission timestamps** as the native library across all tested files.
-
-The remaining ~17% RPM gap is caused by within-lap emission grid divergence from the native per-lap re-reading architecture. All CAN data extraction (byte positions, formulas, scaling) is correct.
-
-### 12.5 Record Count Differences vs Native Library
-
-The native library has a bug where a millis wrapping event can cause it to suppress emission for an entire lap (~90 seconds of data). The parser described in this specification correctly emits through the wrapping event, producing more records than the native library for affected files. This is the intended behavior — the data is valid and should not be discarded.
+See [Section 5.3](#53-millis-wrapping-hardware-edge-case). When detected, add 1000ms to compensate.
 
 ---
 
@@ -1014,8 +862,8 @@ lap,time_ms,latitude,longitude,gps_speed_kmh,rpm,throttle_grip,throttle,water_te
 | front_speed_kmh | float | km/h | Front wheel speed |
 | rear_speed_kmh | float | km/h | Rear wheel speed |
 | fuel_cc | float | cc | Cumulative fuel consumption (resets per lap) |
-| lean_deg | float | degrees | Lean angle absolute value (native-compatible, always >= 0) |
-| lean_signed_deg | float | degrees | Lean angle with direction preserved (Python parser only) |
+| lean_deg | float | degrees | Lean angle absolute value |
+| lean_signed_deg | float | degrees | Lean angle with direction preserved |
 | pitch_deg_s | float | deg/s | Pitch rate |
 | acc_x_g | float | G | Longitudinal acceleration |
 | acc_y_g | float | G | Lateral acceleration |
@@ -1031,7 +879,7 @@ lap,time_ms,latitude,longitude,gps_speed_kmh,rpm,throttle_grip,throttle,water_te
 
 ---
 
-## 14. References
+## References
 
 1. [Yamaha Y-Trac Product Page](https://www.yamaha-motor.eu/fr/fr/y-trac/)
 2. [NMEA 0183 Standard](https://www.nmea.org/content/STANDARDS/NMEA_0183_Standard)

@@ -2,15 +2,42 @@
 """
 CTRK Parser Comparison Suite
 
-Compares Python parser output against native library output by aligning
-records on GPS position (latitude, longitude), which uniquely identifies
+A validation tool that compares Python parser output against native library output
+by aligning records on GPS position (latitude, longitude), which uniquely identifies
 each GPRMC sentence in the binary file.
+
+This module provides functionality to:
+- Load and compare matched pairs of Python/Native CSV outputs
+- Align records using GPS coordinates with sub-meter tolerance
+- Compute per-channel match rates with configurable tolerances
+- Generate summary reports and detailed JSON results
+
+The comparison methodology is designed to handle the inherent differences between
+the two parsers (emission timing, state handling) while accurately measuring
+parsing correctness.
 
 Usage:
     python test_parser_comparison.py <output_dir>
 
-The output_dir should contain matching pairs:
-    *_python.csv and *_native.csv
+    The output_dir should contain matching pairs:
+        *_python.csv and *_native.csv
+
+Example:
+    $ python test_parser_comparison.py output/comparison/
+    ================================================================================
+    PARSER COMPARISON RESULTS (GPS-position aligned)
+    ================================================================================
+    Files compared: 42
+    Total aligned records: 420,123
+    ...
+
+Output:
+    - Console summary with per-channel match rates
+    - comparison_results.json with detailed per-file statistics
+
+See Also:
+    - docs/COMPARISON.md for interpretation of results
+    - src/ctrk_parser.py for the Python parser being validated
 """
 
 import csv
@@ -19,47 +46,97 @@ import sys
 import time
 from pathlib import Path
 from collections import defaultdict
-from typing import List, Dict
+from typing import List, Dict, Optional, Tuple
 
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
 
 # Channel comparison tolerances
+# These values account for floating-point formatting differences and minor
+# timing offsets while still detecting meaningful parsing errors.
 TOLERANCES = {
-    'rpm': 2,
-    'throttle_grip': 0.5,
-    'throttle': 0.5,
-    'front_speed_kmh': 0.5,
-    'rear_speed_kmh': 0.5,
-    'gear': 0,
-    'acc_x_g': 0.02,
-    'acc_y_g': 0.02,
-    'lean_deg': 0.5,
-    'pitch_deg_s': 0.5,
-    'water_temp': 0.5,
-    'intake_temp': 0.5,
-    'fuel_cc': 0.05,
-    'front_brake_bar': 0.1,
-    'rear_brake_bar': 0.1,
-    'gps_speed_kmh': 0.5,
+    'rpm': 2,                  # Integer RPM, allow rounding
+    'throttle_grip': 0.5,      # Percentage, tight tolerance
+    'throttle': 0.5,           # Percentage, tight tolerance
+    'front_speed_kmh': 0.5,    # km/h, sub-1 km/h precision
+    'rear_speed_kmh': 0.5,     # km/h, sub-1 km/h precision
+    'gear': 0,                 # Integer gear, must be exact
+    'acc_x_g': 0.02,           # G-force, ~0.02G noise floor
+    'acc_y_g': 0.02,           # G-force, ~0.02G noise floor
+    'lean_deg': 0.5,           # Degrees, sub-degree precision
+    'pitch_deg_s': 0.5,        # deg/s, sub-degree precision
+    'water_temp': 0.5,         # Celsius, sub-degree precision
+    'intake_temp': 0.5,        # Celsius, sub-degree precision
+    'fuel_cc': 0.05,           # cc, tight tolerance
+    'front_brake_bar': 0.1,    # bar, tight tolerance
+    'rear_brake_bar': 0.1,     # bar, tight tolerance
+    'gps_speed_kmh': 0.5,      # km/h, sub-1 km/h precision
 }
 
+# Boolean channels use exact matching (string comparison)
 BOOL_CHANNELS = {'f_abs', 'r_abs', 'tcs', 'scs', 'lif', 'launch'}
+
+# All channels for iteration
 NUMERIC_CHANNELS = list(TOLERANCES.keys())
 ALL_CHANNELS = NUMERIC_CHANNELS + list(BOOL_CHANNELS)
 
 
+# =============================================================================
+# DATA LOADING
+# =============================================================================
+
 def load_csv(path: str) -> List[dict]:
-    """Load CSV file into list of dicts."""
+    """
+    Load a CSV file into a list of dictionaries.
+
+    Each row becomes a dictionary with column headers as keys and
+    cell values as string values.
+
+    Args:
+        path: Path to the CSV file.
+
+    Returns:
+        List of dictionaries, one per row (excluding header).
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        csv.Error: If the file is not valid CSV.
+
+    Example:
+        >>> rows = load_csv("session_python.csv")
+        >>> print(rows[0]['rpm'])
+        '5234'
+    """
     with open(path) as f:
         return list(csv.DictReader(f))
 
 
-def pos_match(row1: dict, row2: dict, epsilon: float = 0.000005) -> bool:
-    """Check if two rows have matching GPS positions within tolerance.
+# =============================================================================
+# RECORD ALIGNMENT
+# =============================================================================
 
-    Uses tight numeric tolerance (≈0.5m) to handle ±0.000002 lat/lon differences
-    between Python and Native float formatting of the same NMEA sentence,
-    while avoiding false matches between consecutive GPRMC sentences (~2.8m apart
-    at 100 km/h, or ~0.000025 degrees).
+def pos_match(row1: dict, row2: dict, epsilon: float = 0.000005) -> bool:
+    """
+    Check if two records have matching GPS positions within tolerance.
+
+    Uses tight numeric tolerance (~0.5m at equator) to handle small differences
+    in float formatting between Python and Native parsers processing the same
+    NMEA sentence, while avoiding false matches between consecutive GPRMC
+    sentences (typically ~2.8m apart at 100 km/h).
+
+    Args:
+        row1: First record dictionary with 'latitude' and 'longitude' keys.
+        row2: Second record dictionary with 'latitude' and 'longitude' keys.
+        epsilon: Maximum coordinate difference in degrees (default: 0.000005°).
+
+    Returns:
+        True if both latitude and longitude differ by less than epsilon.
+
+    Note:
+        At the equator, 0.000005° ≈ 0.55 meters. This is tight enough to
+        distinguish unique GPRMC sentences while tolerating float formatting.
     """
     lat1, lon1 = float(row1['latitude']), float(row1['longitude'])
     lat2, lon2 = float(row2['latitude']), float(row2['longitude'])
@@ -67,32 +144,50 @@ def pos_match(row1: dict, row2: dict, epsilon: float = 0.000005) -> bool:
 
 
 def align_records(python_rows: List[dict], native_rows: List[dict]) -> dict:
-    """Align Python and Native records by GPS position using sequence matching.
+    """
+    Align Python and Native records by GPS position using sequence matching.
 
-    Both parsers process the same GPRMC sentences, so records should appear
-    in the same order with the same (lat, lon) pairs. We use a simple
-    two-pointer approach to align them, handling insertions/deletions.
+    Both parsers process the same GPRMC sentences from the CTRK file, so records
+    should appear in the same order with matching (lat, lon) pairs. This function
+    uses a two-pointer approach with limited lookahead to align them, handling
+    insertions/deletions gracefully.
 
-    Returns dict with:
-        - aligned: list of (python_row, native_row) tuples
-        - python_orphans: list of python rows with no match
-        - native_orphans: list of native rows with no match
+    The algorithm handles:
+    - Perfect alignment (most common case)
+    - Extra records on either side (orphans)
+    - Small timing differences in emission
+
+    Args:
+        python_rows: List of record dictionaries from Python parser CSV.
+        native_rows: List of record dictionaries from Native parser CSV.
+
+    Returns:
+        Dictionary with:
+        - 'aligned': List of (python_row, native_row) tuples for matched records
+        - 'python_orphans': List of python rows with no match in native
+        - 'native_orphans': List of native rows with no match in python
+
+    Example:
+        >>> alignment = align_records(python_rows, native_rows)
+        >>> print(f"Aligned: {len(alignment['aligned'])}")
+        >>> print(f"Python orphans: {len(alignment['python_orphans'])}")
     """
     aligned = []
     python_orphans = []
     native_orphans = []
 
-    pi = 0
-    ni = 0
+    pi = 0  # Python index
+    ni = 0  # Native index
 
     while pi < len(python_rows) and ni < len(native_rows):
         if pos_match(python_rows[pi], native_rows[ni]):
+            # Direct match - most common case
             aligned.append((python_rows[pi], native_rows[ni]))
             pi += 1
             ni += 1
         else:
             # Look ahead in both sequences to find best match
-            # Check if python has an extra row (skip python)
+            # Check if python has extra rows (skip python)
             found_p_ahead = False
             for look in range(1, 4):
                 if pi + look < len(python_rows) and pos_match(python_rows[pi + look], native_rows[ni]):
@@ -106,7 +201,7 @@ def align_records(python_rows: List[dict], native_rows: List[dict]) -> dict:
             if found_p_ahead:
                 continue
 
-            # Check if native has an extra row (skip native)
+            # Check if native has extra rows (skip native)
             found_n_ahead = False
             for look in range(1, 4):
                 if ni + look < len(native_rows) and pos_match(native_rows[ni + look], python_rows[pi]):
@@ -144,17 +239,37 @@ def align_records(python_rows: List[dict], native_rows: List[dict]) -> dict:
     }
 
 
-def compare_channels(python_row: dict, native_row: dict) -> Dict[str, dict]:
-    """Compare all channels between aligned rows.
+# =============================================================================
+# CHANNEL COMPARISON
+# =============================================================================
 
-    Returns dict mapping channel name to:
-        - match: bool
-        - python_val: original value
-        - native_val: original value
-        - diff: absolute difference (numeric channels only)
+def compare_channels(python_row: dict, native_row: dict) -> Dict[str, dict]:
+    """
+    Compare all telemetry channels between two aligned records.
+
+    For numeric channels, computes absolute difference and checks against
+    the configured tolerance. For boolean channels, performs exact string
+    comparison (case-insensitive).
+
+    Args:
+        python_row: Record dictionary from Python parser.
+        native_row: Record dictionary from Native parser.
+
+    Returns:
+        Dictionary mapping channel name to result dict with:
+        - 'match': bool indicating if values are within tolerance
+        - 'python_val': Value from Python parser
+        - 'native_val': Value from Native parser
+        - 'diff': Absolute difference (numeric) or 0/1 (boolean)
+
+    Example:
+        >>> results = compare_channels(prow, nrow)
+        >>> if not results['rpm']['match']:
+        ...     print(f"RPM mismatch: {results['rpm']['diff']}")
     """
     results = {}
 
+    # Compare numeric channels
     for ch in NUMERIC_CHANNELS:
         try:
             pval = float(python_row[ch])
@@ -168,8 +283,9 @@ def compare_channels(python_row: dict, native_row: dict) -> Dict[str, dict]:
                 'diff': diff,
             }
         except (ValueError, KeyError):
-            pass
+            pass  # Skip if channel missing or invalid
 
+    # Compare boolean channels (exact string match)
     for ch in BOOL_CHANNELS:
         try:
             pval = str(python_row[ch]).lower()
@@ -181,24 +297,58 @@ def compare_channels(python_row: dict, native_row: dict) -> Dict[str, dict]:
                 'diff': 0 if pval == nval else 1,
             }
         except KeyError:
-            pass
+            pass  # Skip if channel missing
 
     return results
 
 
-def compare_file_pair(python_path: str, native_path: str) -> dict:
-    """Compare a single Python/Native CSV pair."""
+# =============================================================================
+# FILE PAIR COMPARISON
+# =============================================================================
+
+def compare_file_pair(python_path: str, native_path: str) -> Optional[dict]:
+    """
+    Compare a single Python/Native CSV file pair.
+
+    Loads both files, aligns records by GPS position, and computes
+    per-channel match statistics.
+
+    Args:
+        python_path: Path to the Python parser output CSV.
+        native_path: Path to the Native parser output CSV.
+
+    Returns:
+        Dictionary with comparison results:
+        - 'python_records': Total records in Python output
+        - 'native_records': Total records in Native output
+        - 'aligned': Number of successfully aligned record pairs
+        - 'python_orphans': Records unique to Python output
+        - 'native_orphans': Records unique to Native output
+        - 'channel_rates': Per-channel match rate and statistics
+        - 'overall_rate': Weighted average match rate across all channels
+        - 'total_matches': Sum of matching channel comparisons
+        - 'total_compared': Sum of all channel comparisons
+        - 'ts_drift_start': Timestamp difference at first aligned record
+        - 'ts_drift_end': Timestamp difference at last aligned record
+        - 'ts_drift_mean': Average timestamp difference
+
+        Returns None if either file is empty.
+
+    Example:
+        >>> result = compare_file_pair("session_python.csv", "session_native.csv")
+        >>> print(f"Overall match: {result['overall_rate']:.1f}%")
+    """
     python_rows = load_csv(python_path)
     native_rows = load_csv(native_path)
 
     if not python_rows or not native_rows:
         return None
 
-    # Align records
+    # Align records by GPS position
     alignment = align_records(python_rows, native_rows)
     aligned = alignment['aligned']
 
-    # Compare channels
+    # Compare all channels for aligned records
     channel_stats = defaultdict(lambda: {'matches': 0, 'total': 0, 'diffs': []})
 
     for prow, nrow in aligned:
@@ -209,7 +359,7 @@ def compare_file_pair(python_path: str, native_path: str) -> dict:
                 channel_stats[ch]['matches'] += 1
             channel_stats[ch]['diffs'].append(result['diff'])
 
-    # Compute rates
+    # Compute per-channel rates
     channel_rates = {}
     for ch in ALL_CHANNELS:
         stats = channel_stats[ch]
@@ -222,12 +372,12 @@ def compare_file_pair(python_path: str, native_path: str) -> dict:
                 'max_diff': max(stats['diffs']) if stats['diffs'] else 0,
             }
 
-    # Overall match rate
+    # Compute overall match rate (across all channel comparisons)
     total_matches = sum(channel_stats[ch]['matches'] for ch in ALL_CHANNELS)
     total_compared = sum(channel_stats[ch]['total'] for ch in ALL_CHANNELS)
     overall_rate = 100.0 * total_matches / total_compared if total_compared > 0 else 0.0
 
-    # Timestamp analysis
+    # Analyze timestamp drift between parsers
     ts_diffs = []
     for prow, nrow in aligned:
         pts = int(prow['time_ms'])
@@ -250,7 +400,30 @@ def compare_file_pair(python_path: str, native_path: str) -> dict:
     }
 
 
+# =============================================================================
+# MAIN ENTRY POINT
+# =============================================================================
+
 def main():
+    """
+    Main entry point for the comparison suite.
+
+    Discovers Python/Native CSV pairs in the specified directory,
+    runs comparisons, and outputs summary statistics to console and JSON.
+
+    Usage:
+        python test_parser_comparison.py <output_dir>
+
+    The output_dir should contain files named:
+        - *_python.csv (Python parser output)
+        - *_native.csv (Native parser output)
+
+    Matching pairs are identified by the prefix before _python/_native.
+
+    Output:
+        - Console: Summary table with per-channel and per-file statistics
+        - JSON: Detailed results saved to comparison_results.json
+    """
     if len(sys.argv) < 2:
         print("Usage: python test_parser_comparison.py <output_dir>")
         sys.exit(1)
@@ -258,7 +431,7 @@ def main():
     output_dir = Path(sys.argv[1])
     start_time = time.time()
 
-    # Find matching pairs
+    # Discover matching file pairs
     python_files = sorted(output_dir.glob('*_python.csv'))
     native_map = {}
     for f in output_dir.glob('*_native.csv'):
@@ -287,6 +460,7 @@ def main():
         total_python_orphans += result['python_orphans']
         total_native_orphans += result['native_orphans']
 
+        # Accumulate global channel statistics
         for ch in ALL_CHANNELS:
             if ch in result['channel_rates']:
                 cr = result['channel_rates'][ch]
@@ -295,7 +469,7 @@ def main():
 
     elapsed = time.time() - start_time
 
-    # Print results
+    # Print results to console
     print("=" * 80)
     print("PARSER COMPARISON RESULTS (GPS-position aligned)")
     print("=" * 80)
@@ -305,6 +479,7 @@ def main():
     print(f"Native orphans: {total_native_orphans:,}")
     print(f"Elapsed: {elapsed:.1f}s")
 
+    # Per-channel summary table
     print(f"\n{'Channel':<20} {'Match Rate':>10} {'Matches':>10} {'Total':>10}")
     print("-" * 55)
 
@@ -323,7 +498,7 @@ def main():
     overall = 100.0 * total_all_matches / total_all_compared if total_all_compared > 0 else 0
     print(f"{'OVERALL':<20} {overall:>9.2f}% {total_all_matches:>10,} {total_all_compared:>10,}")
 
-    # Per-file summary
+    # Per-file summary table
     print(f"\n{'File':<30} {'Rate':>7} {'Aligned':>8} {'P.Orph':>7} {'N.Orph':>7} {'TS drift':>10}")
     print("-" * 75)
     for basename in sorted(file_results, key=lambda b: file_results[b]['overall_rate']):
@@ -332,7 +507,7 @@ def main():
               f"{r['python_orphans']:>7} {r['native_orphans']:>7} "
               f"{r['ts_drift_end']:>+8}ms")
 
-    # Save JSON
+    # Save detailed JSON results
     json_path = output_dir / 'comparison_results.json'
     json_data = {
         'summary': {

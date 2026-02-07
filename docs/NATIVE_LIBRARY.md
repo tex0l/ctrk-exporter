@@ -2,47 +2,54 @@
 
 Documentation of the reverse-engineered Yamaha Y-Trac native library.
 
-> **Status:** Validated — 47 files, 22 channels, 94.9% match rate against native output (42 comparison pairs)
->
-> **Last Updated:** 2026-02-04
-
 ## Overview
 
 The `libSensorsRecordIF.so` library is the core component of the Y-Trac Android application. It parses CTRK/TRG telemetry files recorded by the CCU (Communication Control Unit) motorcycle data logger.
 
-### Architectures
+### Library Information
+
+| Property | Value |
+|----------|-------|
+| Library | libSensorsRecordIF.so |
+| Source | Y-Trac Android APK |
+| Tested version | 1.3.8 |
+| Analysis tool | radare2 |
+
+### Available Architectures
 
 | Architecture | Platform | Notes |
 |--------------|----------|-------|
 | arm64-v8a | Modern Android devices | Recommended |
 | armeabi-v7a | Older 32-bit Android | |
-| x86_64 | Emulators | Used for analysis |
+| x86_64 | Emulators | Used for disassembly analysis |
 | x86 | Older emulators | |
 
 ## JNI Interface
 
 ### Main Functions
 
-| Function | Description |
-|----------|-------------|
-| `GetTotalLap(fileName)` | Returns number of laps in file |
-| `GetLapTimeRecordData(...)` | Retrieves lap timing data |
-| `GetSensorsRecordData(...)` | Main function to extract telemetry |
-| `GetRecordLineData(...)` | Gets start/finish line coordinates |
-| `SplitLogFile(...)` | Splits a log file |
-| `DamageRecoveryLogFile(...)` | Attempts to recover corrupted files |
+| Function | Address | Description |
+|----------|---------|-------------|
+| `GetTotalLap` | — | Returns number of laps in file |
+| `GetLapTimeRecordData` | — | Retrieves lap timing data |
+| `GetSensorsRecordData` | 0xa970 | Main function to extract telemetry |
+| `GetRecordLineData` | — | Gets start/finish line coordinates |
+| `SplitLogFile` | — | Splits a log file |
+| `DamageRecoveryLogFile` | — | Attempts to recover corrupted files |
 
 ### Java Classes (JNI bindings)
 
-- `com.yamaha.jp.dataviewer.SensorsRecordIF` - Native method declarations
-- `com.yamaha.jp.dataviewer.SensorsRecord` - Telemetry data structure
-- `com.yamaha.jp.dataviewer.SensorsLapTimeRecord` - Lap timing structure
-- `com.yamaha.jp.dataviewer.SensorsRecordLine` - Finish line structure
-- `com.yamaha.jp.dataviewer.jni.JNISupport` - Library loader
+- `com.yamaha.jp.dataviewer.SensorsRecordIF` — Native method declarations
+- `com.yamaha.jp.dataviewer.SensorsRecord` — Telemetry data structure
+- `com.yamaha.jp.dataviewer.SensorsLapTimeRecord` — Lap timing structure
+- `com.yamaha.jp.dataviewer.SensorsRecordLine` — Finish line structure
+- `com.yamaha.jp.dataviewer.jni.JNISupport` — Library loader
 
-## Output Data Structure
+## Data Structures
 
-The native library populates the following data structure for each telemetry sample:
+### SensorsRecord
+
+The native library populates this structure for each telemetry sample:
 
 ```c
 struct SensorsRecord {
@@ -74,7 +81,7 @@ struct SensorsRecord {
 };
 ```
 
-The native library also provides lap timing data:
+### SensorsLapTimeRecord
 
 ```c
 struct SensorsLapTimeRecord {
@@ -83,96 +90,178 @@ struct SensorsLapTimeRecord {
 };
 ```
 
-## CAN Message Parsing
+## Key Functions (Disassembly)
 
-All CAN formulas have been verified by disassembly:
+### GetSensorsRecordData (0xa970)
 
-| CAN ID | Fields | Status |
-|--------|--------|--------|
-| 0x0209 | RPM, Gear | ✓ Confirmed |
-| 0x0215 | TPS, APS, Launch, TCS, SCS, LIF | ✓ Confirmed |
-| 0x023E | Water Temp, Intake Temp, Fuel | ✓ Confirmed |
-| 0x0250 | ACC_X, ACC_Y | ✓ Confirmed |
-| 0x0258 | LEAN, PITCH | ✓ Confirmed (with deadband) |
-| 0x0260 | Front/Rear Brake | ✓ Confirmed |
-| 0x0264 | Front/Rear Speed | ✓ Confirmed |
-| 0x0268 | F_ABS, R_ABS | ✓ Confirmed (R_ABS=bit0, F_ABS=bit1) |
+Main entry point for telemetry extraction. Processes one lap at a time.
 
-### Record Timestamp Structure
+**Behavior:**
+1. Calls `memset(state, 0, 0x2c8)` at 0xa9fc to initialize CAN state
+2. Calls `memset(aux, 0, 0x2e0)` at 0xaa10 to initialize auxiliary state
+3. Iterates through records calling `getLogRecord` at 0xf921
+4. Dispatches to type-specific handlers
 
-Each record has a 14-byte header containing a 10-byte timestamp. See [CTRK_FORMAT_SPECIFICATION.md Section 4.1](CTRK_FORMAT_SPECIFICATION.md#41-record-header) for the complete structure: `[millis(2LE)][sec][min][hour][wday][day][month][year(2LE)]`. The native library uses bytes 2-9 (the same-second portion) for its `memcmp` optimization at 0xaee1.
+### getLogRecord (0xf921)
 
-## Calibration Formulas
+Reads a single 14-byte record header from the file.
 
-See [CTRK_FORMAT_SPECIFICATION.md](CTRK_FORMAT_SPECIFICATION.md) for complete formulas.
+```c
+fread(buf, 14, 1, file);  // Always reads exactly 14 bytes
+```
 
-### LEAN Angle (Special Case)
+### GetTimeData (0xdf40)
 
-The native LEAN formula includes a deadband with nibble interleaving and truncation. See [CTRK_FORMAT_SPECIFICATION.md Section 8.2.5](CTRK_FORMAT_SPECIFICATION.md#825-lean-angle) for the complete algorithm.
+Converts the 10-byte timestamp structure to epoch milliseconds.
 
-## Validation Results
+**Timestamp structure:**
+```
+[millis(2LE)][sec][min][hour][wday][day][month][year(2LE)]
+```
 
-### Test Coverage
+### GetTimeDataEx (0xde80)
 
-- **Files tested:** 47 CTRK files (42 with native comparison pairs)
-- **Date range:** July 2025 - October 2025
-- **Total records:** 420K+ telemetry points
+Optimized timestamp computation using incremental updates when records share the same second.
 
-### Analog Channels Comparison (min/max/avg across all files)
+**Logic:**
+- Uses `memcmp` at 0xaee1 to compare bytes 2-9 (same-second check)
+- If same second: `epoch_ms = curr_millis + (prev_epoch_ms - prev_millis)`
+- Otherwise: full recomputation via GetTimeData
 
-| Channel | Python | Native | Status |
-|---------|--------|--------|--------|
-| rpm | 0 / 15232 / 5507 | 0 / 15232 / 5515 | ✓ Exact min/max |
-| throttle_grip | 0 / 107.2 / 15.0 | 0 / 107.2 / 15.0 | ✓ Exact |
-| throttle | 0 / 102.7 / 15.4 | 0 / 102.7 / 15.4 | ✓ Exact |
-| water_temp | -30 / 115 / 82.3 | -30 / 115 / 81.7 | ✓ Exact min/max |
-| intake_temp | -30 / 51.2 / 26.9 | -30 / 51.3 / 26.8 | ✓ Match |
-| front_speed_kmh | 0 / 276.9 / 69.1 | 0 / 276.9 / 69.0 | ✓ Exact |
-| rear_speed_kmh | 0 / 274.7 / 70.0 | 0 / 274.7 / 69.9 | ✓ Exact |
-| fuel_cc | 0 / 833 / 203.6 | 0 / 833 / 204.0 | ✓ Exact min/max |
-| lean_deg | -90 / 56 / 14.9 | -90 / 56 / 14.9 | ✓ Exact |
-| pitch_deg_s | -300 / 80.1 / -0.6 | -300 / 80.1 / -0.8 | ✓ Exact min/max |
-| acc_x_g | -7 / 2.0 / 0.0 | -7 / 2.0 / 0.0 | ✓ Exact |
-| acc_y_g | -7 / 1.5 / 0.0 | -7 / 1.5 / 0.0 | ✓ Exact |
-| front_brake_bar | 0 / 1.7 / 0.1 | 0 / 1.7 / 0.1 | ✓ Exact |
-| rear_brake_bar | 0 / 0 / 0 | 0 / 0 / 0 | ✓ Exact |
-| gear | 0 / 6 / 1.6 | 0 / 6 / 1.6 | ✓ Exact |
+### AnalisysCAN (0xdfd0)
 
-### Boolean Channels Comparison
+Dispatches CAN messages to type-specific decoders.
 
-| Channel | Python True | Native True | Status |
-|---------|-------------|-------------|--------|
-| f_abs | 70 | 68 | ✓ Match |
-| r_abs | 7,358 | 7,326 | ✓ Match |
-| tcs | 21,111 | 20,995 | ✓ Match |
-| scs | 1,742 | 1,735 | ✓ Match |
-| lif | 4,156 | 4,113 | ✓ Match |
-| launch | 0 | 0 | ✓ Exact |
+**CAN payload structure:**
+```
+[canid(2LE)][pad(2)][DLC(1)][data(DLC)]
+```
 
-### Notes
+Note: DLC byte exists but is **never read** — the library assumes fixed sizes per CAN ID.
 
-- Minor differences in record counts (~0.1%) due to GPS timestamp handling
-- All min/max values are identical between Python and native
-- Average values differ by < 0.5% due to record count differences
-- Boolean channels show < 1% difference due to record alignment
+### AnalisysNMEA (0xe330)
+
+Parses GPS NMEA sentences.
+
+**Behavior:**
+- Uses `strncmp` to check for `$GPRMC`
+- Validates checksum via XOR
+- Extracts lat, lon, speed
+
+## CAN Message Handlers
+
+All handlers verified by disassembly:
+
+| CAN ID | Handler Address | Fields |
+|--------|----------------|--------|
+| 0x0209 | 0xe14b | RPM, Gear |
+| 0x0215 | 0xe170 | TPS, APS, Launch, TCS, SCS, LIF |
+| 0x023E | 0xe292 | Water Temp, Intake Temp, Fuel |
+| 0x0250 | 0xe0be | ACC_X, ACC_Y |
+| 0x0258 | 0xe1bc | LEAN, PITCH |
+| 0x0260 | 0xe226 | Front Brake, Rear Brake |
+| 0x0264 | 0xe07a | Front Speed, Rear Speed |
+| 0x0268 | 0xe2b7 | F_ABS, R_ABS |
+| 0x051b | 0xe102 | Stores 8 bytes at offset 0x2c8 (unmapped) |
+
+### Notable Behaviors
+
+#### Gear 7 Rejection (0xe163)
+
+```asm
+cmp eax, 7
+je skip  ; Reject gear value 7 (transitioning)
+```
+
+#### ABS Bit Order (0xe2b7)
+
+```
+R_ABS = data[4] & 1      ; bit 0
+F_ABS = (data[4] >> 1) & 1  ; bit 1
+```
+
+Note: R_ABS is bit 0, F_ABS is bit 1 (counterintuitive order).
+
+#### LEAN Deadband (0xe1bc-0xe32e)
+
+The LEAN calculation includes:
+1. Nibble interleaving across bytes 0-3
+2. Deviation from center (9000)
+3. Deadband: if deviation <= 499, return 9000 (upright)
+4. Truncation to nearest 100 (floor, not round)
+
+## Emission Logic
+
+### Time Delta Check (0xaf19)
+
+```asm
+cmp rcx, 100  ; Compare delta with 100ms
+jge emit      ; Emit if >= 100ms
+```
+
+Records are emitted at 100ms intervals (10 Hz).
+
+### Three-Band Classification (0xaf1b)
+
+The native library classifies time deltas into bands:
+
+| Band | Condition | Action |
+|------|-----------|--------|
+| 0 | delta < 0 | Emit with error code -2 |
+| 1 | delta <= 10ms | Skip record entirely |
+| 2 | 10ms < delta < 100ms | Process, clear validity flag |
+| 3 | delta >= 100ms | Full processing + emit |
+
+### Row Counter Limit (0xaece)
+
+```asm
+cmp [rcx], eax
+jge error_-3  ; Return -3 if counter >= 72000
+```
+
+Maximum 72,000 records per lap (2 hours at 10 Hz).
+
+### GPS Sentinel Values (0xaa39)
+
+```asm
+movaps xmm0, [0x2b380]  ; Load 9999.0 sentinel
+```
+
+When no GPS fix: lat = 9999.0, lon = 9999.0
+
+### State Initialization (0xa9fc)
+
+```asm
+memset(state, 0, 0x2c8)  ; Zero all CAN state
+```
+
+Called at the start of each lap, producing physically impossible initial values:
+- acc_x, acc_y = -7.0 G
+- lean = -90.0°
+- pitch = -300.0°/s
+
+## Lap Detection
+
+The native library uses **type-5 Lap marker records** from the CCU hardware for lap boundaries:
+
+1. `fcn.0000a430` scans for type-5 records to count total laps
+2. `moveToLapLogRecorOffset` at 0xed50 seeks to lap N's start position
+3. Each lap is processed independently with full state reset
+
+## Known Bugs
+
+### Millis Wrapping
+
+When the millisecond counter wraps (999 → 0) within the same second field:
+- Native produces negative time delta
+- Emits record with error code -2
+- Can suppress emission for entire lap (~90 seconds)
+
+**Observed:** File 20250906-161606, lap 6 missing in native output.
 
 ## Tools Used
 
-- **radare2** - Binary analysis (`r2 -q -e scr.color=0 -c 'aaa; afl~CAN' libSensorsRecordIF.so`)
-- **nm -D** - Symbol extraction
-- **jadx** - APK decompilation
-- **Android Emulator** - Native library execution for comparison
-- **Python parser** - Independent implementation for validation
-
-## Changelog
-
-### 2026-01-27
-- Validated 47 CTRK files across 4 months (42 with native comparison pairs)
-- Documented 10-byte record timestamp structure (millis + date/time fields)
-- Documented year encoding as uint16 LE (e.g., 2025 = 0x07E9)
-- Corrected ABS bit order (R_ABS=bit0, F_ABS=bit1)
-- Full channel validation completed (22 channels, 420K+ records)
-
-### 2026-01-26
-- Initial validation with single test file
-- CAN formulas verified via disassembly
+- **radare2** — Binary analysis (`r2 -q -e scr.color=0 -c 'aaa; afl' lib.so`)
+- **nm -D** — Symbol extraction
+- **jadx** — APK decompilation
+- **Android Emulator** — Runtime execution for output comparison

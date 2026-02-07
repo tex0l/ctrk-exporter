@@ -1,7 +1,7 @@
 # CTRK File Format Specification
 
-**Version:** 2.1
-**Date:** 2026-02-04
+**Version:** 2.2
+**Date:** 2026-02-07
 **Source:** Reverse-engineered from Yamaha Y-Trac CCU data logger files
 
 ---
@@ -27,6 +27,7 @@ This specification is intended to be sufficient for a developer to implement a f
 11. [Footer Section](#11-footer-section)
 12. [Edge Cases](#12-edge-cases)
 13. [Output Format](#13-output-format)
+14. [References](#references)
 
 ---
 
@@ -59,13 +60,13 @@ This specification covers:
 
 | Term | Definition |
 |------|------------|
-| CCU | Communication Control Unit — the data logger hardware mounted on the motorcycle |
-| CAN | Controller Area Network — vehicle bus standard (ISO 11898) |
-| NMEA | National Marine Electronics Association — GPS sentence format (NMEA 0183) |
-| APS | Accelerator Position Sensor — throttle grip position |
-| TPS | Throttle Position Sensor — actual throttle butterfly valve position |
-| IMU | Inertial Measurement Unit — lean angle and pitch rate sensor |
-| DLC | Data Length Code — number of data bytes in a CAN frame |
+| CCU | Communication Control Unit -- the data logger hardware mounted on the motorcycle |
+| CAN | Controller Area Network -- vehicle bus standard (ISO 11898) |
+| NMEA | National Marine Electronics Association -- GPS sentence format (NMEA 0183) |
+| APS | Accelerator Position Sensor -- throttle grip position |
+| TPS | Throttle Position Sensor -- actual throttle butterfly valve position |
+| IMU | Inertial Measurement Unit -- lean angle and pitch rate sensor |
+| DLC | Data Length Code -- number of data bytes in a CAN frame |
 
 ---
 
@@ -75,27 +76,27 @@ A CTRK file consists of three contiguous sections:
 
 ```
 Offset     Section         Description
-───────────────────────────────────────────────────────────
+-------------------------------------------------------
 0x0000     HEADER          Magic + fixed fields + variable-length entries
-           │
-           ├── 0x0000      Magic signature ("HEAD", 4 bytes)
-           ├── 0x0004      Fixed header (48 bytes, partially decoded)
-           └── 0x0034      Variable-length entries (RECORDLINE coords, CCU_VERSION)
-                           ↓ entries end when entry_size is invalid
-───────────────────────────────────────────────────────────
+           |
+           +-- 0x0000      Magic signature ("HEAD", 4 bytes)
+           +-- 0x0004      Fixed header (48 bytes, partially decoded)
+           +-- 0x0034      Variable-length entries (RECORDLINE coords, CCU_VERSION)
+                           : entries end when entry_size is invalid
+-------------------------------------------------------
 ~0x00CB    DATA            Sequential typed records with 14-byte headers
-           │
-           ├── Record 0    [14-byte header][payload]
-           ├── Record 1    [14-byte header][payload]
-           ├── ...
-           └── Record N    [14-byte header][payload]
-                           ↓ ends at null terminator or invalid header
-───────────────────────────────────────────────────────────
+           |
+           +-- Record 0    [14-byte header][payload]
+           +-- Record 1    [14-byte header][payload]
+           +-- ...
+           +-- Record N    [14-byte header][payload]
+                           : ends at null terminator or invalid header
+-------------------------------------------------------
 EOF-370    FOOTER          JSON metadata object (optional, ~370 bytes)
-───────────────────────────────────────────────────────────
+-------------------------------------------------------
 ```
 
-The data section starts immediately after the last valid header entry. Each record in the data section has an explicit type and size — **no pattern matching is required**.
+The data section starts immediately after the last valid header entry. Each record in the data section has an explicit type and size -- **no pattern matching is required**.
 
 ---
 
@@ -110,12 +111,12 @@ Offset  Size  Type    Value
 
 A file that does not start with these 4 bytes is not a valid CTRK file.
 
-### 3.2 Fixed Header (0x0004 — 0x0033)
+### 3.2 Fixed Header (0x0004 -- 0x0033)
 
 The 48 bytes following the magic contain session metadata. The exact field layout is not fully decoded. Known observations:
 
-- Bytes 0x04-0x0F: typically zero
-- The fixed header region is not required for parsing telemetry data
+- Bytes 0x04-0x0F: contain values whose purpose is not confirmed; they are typically zero but non-zero values have been observed in some files
+- The fixed header region is not required for parsing telemetry data; its content does not affect the parsing of subsequent sections
 
 ### 3.3 Variable-Length Header Entries (starting at 0x0034)
 
@@ -149,6 +150,8 @@ while offset < file_length:
 data_section_start = offset
 ```
 
+The loop is bounded by the sanity checks on `entry_size` (must be between 5 and 200 inclusive) and `name_length` (must be at least 1 and fit within the entry). This ensures parsing terminates cleanly even if the header is corrupted.
+
 #### Known Entries
 
 | Entry Name | Value Format | Description |
@@ -159,11 +162,13 @@ data_section_start = offset
 | `RECORDLINE.P2.LNG` | `(` + 8-byte double LE | Finish line point 2, longitude (degrees) |
 | `CCU_VERSION` | 4 unknown bytes + ASCII | CCU firmware version string |
 
-The RECORDLINE value fields begin with byte `0x28` (ASCII `(`), followed by 8 bytes of IEEE 754 double-precision floating point (little-endian).
+The RECORDLINE value fields begin with byte `0x28` (ASCII `(`), followed by 8 bytes of IEEE 754 double-precision floating point (little-endian). The total value size for a RECORDLINE entry is therefore 9 bytes: 1 prefix byte + 8 double bytes.
+
+The `CCU_VERSION` entry begins with 4 bytes whose purpose is not confirmed, followed by an ASCII string containing the firmware version.
 
 #### Worked Example
 
-Hex dump of the first header entry from a real file:
+Hex dump of a hypothetical first header entry:
 
 ```
 Offset  Hex                                                          ASCII
@@ -172,16 +177,17 @@ Offset  Hex                                                          ASCII
 ```
 
 Decoding:
-- `1f 00 00 00` → entry_size = 31
-- `11` → name_length = 17
-- `52 45 43 ... 54` → name = "RECORDLINE.P1.LAT"
-- `28 a1 f2 af e5 95 f9 47 40` → value: `(` prefix + double 47.949887
+- `1f 00 00 00` -> entry_size = 31
+- `11` -> name_length = 17
+- `52 45 43 ... 54` -> name = "RECORDLINE.P1.LAT"
+- `28` -> value prefix byte (ASCII `(`, hex `0x28`)
+- `a1 f2 af e5 95 f9 47 40` -> IEEE 754 double = 47.949887 (latitude in decimal degrees)
 
 ---
 
 ## 4. Data Section
 
-The data section begins immediately after the last valid header entry (typically around offset `0xCB`, but varies per file). It consists of a contiguous sequence of binary records, each with a 14-byte header.
+The data section begins immediately after the last valid header entry (typically around offset `0xCB`, but varies per file depending on the number and size of header entries). It consists of a contiguous sequence of binary records, each with a 14-byte header.
 
 ### 4.1 Record Header (14 bytes)
 
@@ -207,8 +213,8 @@ The payload immediately follows the header and is `total_size - 14` bytes long. 
 
 ```
 Hex:  01 00 1b 00 6f 03 22 15 0c 02 1d 07 e9 07  [payload...]
-      ├───┤ ├───┤ ├───┤ ── ── ── ── ── ── ├───┤
-      type  size  ms    s  m  h  wd d  mo year
+      +----+ +----+ +----+ -- -- -- -- -- -- +----+
+      type   size   ms    s  m  h  wd d  mo  year
 ```
 
 | Field | Hex | Value |
@@ -232,49 +238,57 @@ Timestamp: 2025-07-29 12:21:34.879 UTC. Payload: 13 bytes (27 - 14).
 |------|------|-----------------|----------------|
 | 1 | CAN | CAN bus message (see [Section 8](#8-can-bus-messages)) | Update telemetry state |
 | 2 | GPS | NMEA sentence (see [Section 7](#7-gps-nmea-records)) | Update GPS position |
-| 3 | (unused) | Unknown | Skip (read and discard) |
-| 4 | AIN | Analog input (not observed) | Skip (read and discard) |
-| 5 | Lap | Lap marker from CCU hardware | Informational (see note) |
+| 3 | (unused) | Unknown | Skip (read and discard payload) |
+| 4 | AIN | Analog input | Skip (read and discard payload) |
+| 5 | Lap | Lap marker from CCU hardware | Re-align emission clock (see [Section 6](#6-emission-logic)) |
 
-**Note on type 5 (Lap):** The CCU emits these records at hardware-detected lap crossings. The payload is 8 bytes:
+**Note on type 3 (unused):** This record type is defined in the type enumeration but its payload format and purpose are not understood. No files examined to date contain type-3 records with meaningful content.
+
+**Note on type 4 (AIN):** This record type is reserved for auxiliary analog input data. Its exact payload format is not documented here because it has not been observed in practice.
+
+**Note on type 5 (Lap):** The CCU emits these records at hardware-detected lap crossings. When a type-5 record is encountered, the emission clock is re-aligned by setting `last_emitted_ms = current_epoch_ms`. This prevents emission timing drift across lap boundaries.
+
+The payload is 8 bytes:
 
 | Offset | Size | Type | Description |
 |--------|------|------|-------------|
 | 0 | 4 | uint32 LE | Lap elapsed time in milliseconds |
-| 4 | 4 | — | Always zero (reserved) |
+| 4 | 4 | -- | Always zero (reserved/unknown purpose) |
 
 ### 4.3 End-of-Data Detection
 
 Stop reading records when ANY of these conditions is true:
 
-1. `record_type == 0 AND total_size == 0` — null terminator
-2. `total_size < 14` — too small to contain a header
-3. `total_size > 500` — unreasonably large
-4. `record_type` is not in {1, 2, 3, 4, 5} — unknown type
-5. `current_offset + total_size > file_length` — truncated record
+1. `record_type == 0 AND total_size == 0` -- null terminator
+2. `total_size < 14` -- too small to contain a header
+3. `total_size > 500` -- unreasonably large
+4. `record_type` is not in {1, 2, 3, 4, 5} -- unknown type
+5. `current_offset + total_size > file_length` -- truncated record
 
 ### 4.4 Record Type 1: CAN Payload Format
 
 ```
 Offset  Size   Type       Field      Description
 0       2      uint16 LE  can_id     CAN message identifier
-2       2      —          (padding)  Unused, always 0x00 0x00
+2       2      --         (padding)  Unused, always 0x00 0x00
 4       1      uint8      dlc        Data Length Code (number of data bytes)
 5       dlc    bytes      can_data   CAN frame data
 ```
 
 Total payload size: `5 + dlc` bytes. Total record size: `14 + 5 + dlc = 19 + dlc` bytes.
 
+The DLC byte is present in the payload but the native implementation does not read it -- it assumes fixed sizes per CAN ID based on a hardcoded dispatch table. A parser may use the DLC for validation but should not depend on it for correctness.
+
 #### Worked Example
 
 ```
 Header:   01 00 1b 00 6f 03 22 15 0c 02 1d 07 e9 07
 Payload:  11 05 00 00 08 55 d1 d0 d1 d0 2c 00 28
-          ├───┤ ├───┤ ── ├──────────────────────┤
-          canid  pad  dlc  can_data (8 bytes)
+          +----+ +----+ -- +----------------------------+
+          canid  pad   dlc  can_data (8 bytes)
 ```
 
-- CAN ID: `11 05` → 0x0511
+- CAN ID: `11 05` -> 0x0511
 - Padding: `00 00`
 - DLC: 8
 - CAN data: `55 d1 d0 d1 d0 2c 00 28`
@@ -307,6 +321,8 @@ $GPRMC,122135.000,A,4757.0410,N,00012.5240,E,5.14,334.60,290725,,,A*65\r\n
 | 0x0511 | 8 | 27 |
 | 0x051b | 8 | 27 |
 
+CAN IDs not listed in this table may appear in files and should be silently skipped by the parser.
+
 ---
 
 ## 5. Timestamp Computation
@@ -321,11 +337,11 @@ When the second changes (or for the very first record), compute the full timesta
 epoch_ms = mktime(year, month, day, hours, minutes, seconds) * 1000 + millis
 ```
 
-Where `mktime` converts calendar time to Unix epoch seconds (UTC).
+Where `mktime` converts calendar time to Unix epoch seconds (UTC). The weekday field (byte 5 of the timestamp) is not used in the epoch computation -- it is informational only.
 
 ### 5.2 Incremental Computation
 
-For performance, timestamps can be computed incrementally when records share the same second:
+For performance, timestamps can be computed incrementally when records share the same second. This avoids calling `mktime` for every record:
 
 ```
 if prev_ts_bytes is NULL:
@@ -333,7 +349,7 @@ if prev_ts_bytes is NULL:
     epoch_ms = GetTimeData(ts_bytes)
 
 else if ts_bytes == prev_ts_bytes:
-    // Identical timestamp: reuse previous value
+    // Identical timestamp (all 10 bytes): reuse previous value
     epoch_ms = prev_epoch_ms
 
 else if ts_bytes[2:10] == prev_ts_bytes[2:10]:
@@ -355,21 +371,25 @@ prev_epoch_ms = epoch_ms
 prev_ts_bytes = ts_bytes
 ```
 
-The "same second" check compares bytes 2 through 9 (sec, min, hour, wday, day, month, year) — all fields except millis.
+The "same second" check compares bytes 2 through 9 (sec, min, hour, wday, day, month, year) -- all fields except millis.
+
+**Note on millis wrapping correction:** The `+ 1000` correction when `curr_millis < prev_millis` is applied by this specification to prevent timestamp regression. The native implementation does NOT apply this correction and instead produces a negative time delta, which it handles via an error return code (see [Section 5.3](#53-millis-wrapping-hardware-edge-case) and [Section 12.3](#123-millis-wrapping) for details).
 
 ### 5.3 Millis Wrapping (Hardware Edge Case)
 
-The CCU timestamp capture is **non-atomic**. In rare cases (observed once per ~156,000 records), the millis field wraps from ~999 to ~0 while the seconds field has not yet incremented. Both records show the same second value, but millis decreased.
+The CCU timestamp capture is **non-atomic**. In rare cases, the millis field wraps from ~999 to ~0 while the seconds field has not yet incremented. Both records show the same second value, but millis decreased.
 
 **Example:**
 ```
-Record N:   millis=999, sec=47  →  epoch = ...107999
-Record N+1: millis=8,   sec=47  →  epoch = ...107008  (991ms BACKWARDS!)
+Record N:   millis=999, sec=47  ->  epoch = ...107999
+Record N+1: millis=8,   sec=47  ->  epoch = ...107008  (991ms BACKWARDS!)
 ```
 
 **Detection:** `curr_millis < prev_millis` within the same second (bytes 2-9 are identical).
 
-**Fix:** Add 1000ms to the computed epoch_ms to compensate for the un-incremented second field.
+**Recommended fix:** Add 1000ms to the computed epoch_ms to compensate for the un-incremented second field.
+
+**Native behavior:** The native implementation does NOT apply this correction. Instead, the negative time delta triggers an error code (-2) and may suppress emission for the remainder of the lap. This can cause data loss.
 
 ---
 
@@ -389,7 +409,7 @@ The emission logic uses two independent time trackers:
 - `last_emitted_ms`: the timestamp of the most recently emitted output record
 - `current_epoch_ms`: the timestamp of the record currently being processed
 
-**Initialization:** Set `last_emitted_ms` to the `current_epoch_ms` of the **first record**.
+**Initialization:** Set `last_emitted_ms` to the `current_epoch_ms` of the **first record** in the data section (regardless of type).
 
 **Emission check (after processing each record's payload):**
 
@@ -401,11 +421,11 @@ if has_gprmc AND (current_epoch_ms - last_emitted_ms) >= 100:
 
 ### 6.3 GPS Gating
 
-Output records are only emitted **after the first GPRMC sentence** is encountered. This is because GPS coordinates are required for each output record.
+Output records are only emitted **after the first GPRMC sentence** with a valid checksum is encountered. This is because GPS coordinates are required for each output record.
 
 - Track a boolean `has_gprmc`, initially false
-- Set `has_gprmc = true` upon encountering the first GPRMC sentence with a valid checksum
-- On the first GPRMC, immediately emit one initial record
+- Set `has_gprmc = true` upon encountering the first GPRMC sentence with a valid checksum (regardless of whether its status is `A` or `V`)
+- On the first valid-checksum GPRMC, immediately emit one initial record using `last_emitted_ms` as the record timestamp (not the current record's timestamp)
 
 ### 6.4 GPS State
 
@@ -415,9 +435,12 @@ Output records are only emitted **after the first GPRMC sentence** is encountere
 | longitude | 9999.0 | Sentinel (no fix) |
 | speed_knots | 0.0 | GPS ground speed |
 
+The sentinel value 9999.0 indicates that no GPS fix has been acquired. Coordinates greater than or equal to 1000.0 should be treated as invalid/sentinel values.
+
 **Update rules:**
-- Only update latitude, longitude, and speed when the GPRMC sentence has status `A` (valid fix)
+- Only update latitude, longitude, and speed when the GPRMC sentence has status `A` (valid fix) and a valid checksum
 - GPRMC with status `V` (void): acknowledge it (set `has_gprmc`), but do NOT update position or speed
+- GPRMC with invalid checksum: reject entirely (do NOT set `has_gprmc`, do NOT update any state)
 
 ### 6.5 Processing Order
 
@@ -425,20 +448,40 @@ For each record in the data section:
 
 ```
 1. Read 14-byte header
-2. Compute current_epoch_ms
+2. Compute current_epoch_ms (see Section 5)
 3. Initialize last_emitted_ms if this is the first record
 4. Process payload:
-   - Type 1 (CAN): update telemetry state
-   - Type 2 (GPS): update GPS state; emit initial record if first GPRMC
+   - Type 1 (CAN): update telemetry state via CAN handler
+   - Type 2 (GPS): parse NMEA sentence; update GPS state if valid fix;
+                    if this is the first valid-checksum GPRMC, set has_gprmc
+                    and emit an initial record with timestamp = last_emitted_ms
    - Type 5 (Lap): re-align emission clock (last_emitted_ms = current_epoch_ms)
-   - Other types: skip payload
-5. Emission check: if has_gprmc AND elapsed >= 100ms, emit and update clock
-6. Advance to next record
+   - Other types: skip payload (advance past it)
+5. Emission check: if has_gprmc AND (current_epoch_ms - last_emitted_ms) >= 100ms,
+   emit output record and set last_emitted_ms = current_epoch_ms
+6. Advance to next record (current_offset += total_size)
 ```
 
 ### 6.6 Final Record
 
-After the parsing loop ends, emit one final record with the last accumulated state.
+After the parsing loop ends (end-of-data detected), emit one final record with the last accumulated state and `current_epoch_ms` as the timestamp, provided that `has_gprmc` is true.
+
+### 6.7 Three-Band Time Delta Classification (Native Behavior)
+
+The native implementation classifies time deltas between consecutive records into bands that affect processing behavior:
+
+| Band | Condition | Action |
+|------|-----------|--------|
+| 0 | delta < 0 | Emit with error code -2 (timestamp error) |
+| 1 | delta <= 10ms | Skip record entirely (duplicate/noise suppression) |
+| 2 | 10ms < delta < 100ms | Process CAN/GPS data, update state, but do NOT emit |
+| 3 | delta >= 100ms | Full processing + emit output record |
+
+Band 1 suppression (skipping records with delta <= 10ms) is a noise-reduction optimization in the native implementation. A parser may choose not to implement this; processing all records regardless of delta produces functionally equivalent output since the 100ms emission interval naturally aggregates the state.
+
+### 6.8 Record Count Limit (Native Behavior)
+
+The native implementation enforces a maximum of 72,000 output records per lap (equivalent to 2 hours at 10 Hz). If this limit is exceeded, it returns an error code (-3). A standalone parser may choose not to enforce this limit.
 
 ---
 
@@ -467,6 +510,8 @@ $GPRMC,HHMMSS.sss,S,DDMM.MMMM,N,DDDMM.MMMM,E,SPD,CRS,DDMMYY,,,M*HH
 | 10-11 | (unused) | Mode/variation | `,` |
 | 12 | Checksum | `*` + 2 hex digits | `*65` |
 
+Note: The timestamp in the GPRMC sentence (field 1) is NOT used for telemetry timing. The 14-byte record header timestamp is used instead.
+
 ### 7.2 Coordinate Conversion
 
 NMEA coordinates are in degrees-minutes (DDDmm.mmmm) format:
@@ -475,9 +520,11 @@ NMEA coordinates are in degrees-minutes (DDDmm.mmmm) format:
 decimal_degrees = integer_degrees + (decimal_minutes / 60.0)
 ```
 
+For latitude, the integer part is 2 digits (DD); for longitude, it is 3 digits (DDD).
+
 Apply sign for hemisphere: negative for S (latitude) and W (longitude).
 
-**Example:** `4757.0410,N` → 47 + (57.0410 / 60.0) = **47.950683** degrees North
+**Example:** `4757.0410,N` -> 47 + (57.0410 / 60.0) = **47.950683** degrees North
 
 ### 7.3 Checksum Validation
 
@@ -490,15 +537,16 @@ for each byte between '$' and '*':
 valid = (checksum == parse_hex(sentence[star_index+1 : star_index+3]))
 ```
 
-**Reject sentences with invalid checksums.**
+**Reject sentences with invalid checksums.** Do not update any state (including `has_gprmc`) for sentences that fail checksum validation.
 
 ### 7.4 Void Status Handling
 
 GPRMC sentences with status `V` (void) indicate GPS hardware is active but has no satellite fix.
 
-Parser behavior for void sentences:
+Parser behavior for void sentences (with valid checksum):
 - Set `has_gprmc = true` (enables emission)
 - Do NOT update latitude, longitude, or speed (retain sentinel/previous values)
+- If this is the first valid-checksum GPRMC, emit the initial record
 
 ---
 
@@ -510,39 +558,41 @@ Parser behavior for void sentences:
 |--------|------|-----|----------------|
 | 0x0209 | Engine | 6 | RPM, Gear |
 | 0x0215 | Throttle | 8 | TPS, APS, Launch, TCS, SCS, LIF |
-| 0x0226 | (unknown) | 7 | Not decoded |
-| 0x0227 | (unknown) | 3 | Not decoded |
+| 0x0226 | (undecoded) | 7 | Not decoded; raw payload stored |
+| 0x0227 | (undecoded) | 3 | Not decoded; raw payload stored |
 | 0x023E | Temperature/Fuel | 4 | Water temp, Intake temp, Fuel delta |
 | 0x0250 | Acceleration | 8 | ACC_X, ACC_Y |
 | 0x0258 | IMU | 8 | LEAN, PITCH |
 | 0x0260 | Brake | 8 | Front brake, Rear brake |
 | 0x0264 | Wheel Speed | 4 | Front speed, Rear speed |
 | 0x0268 | ABS Status | 6 | F_ABS, R_ABS |
-| 0x0511 | (unknown) | 8 | Not decoded |
-| 0x051b | (unknown) | 8 | Not decoded |
+| 0x0511 | (undecoded) | 8 | Not decoded; raw payload stored |
+| 0x051b | (undecoded) | 8 | Not decoded; raw payload stored |
 
 CAN IDs not in the table above may appear in files and should be silently skipped.
+
+**Note on undecoded CAN IDs:** CAN IDs 0x0226, 0x0227, 0x0511, and 0x051b are present in CTRK files and are handled by the native implementation, but they are not decoded into named telemetry channels. The native implementation stores the raw CAN data bytes into dedicated fields, making them available for future use or external analysis. The purpose and data layout of these CAN messages are not known.
 
 ### 8.2 CAN Data Byte Layout
 
 > **Reminder:** All multi-byte values within CAN data are **big-endian** (MSB at lower byte index).
 
-#### 8.2.1 Engine — 0x0209 (DLC=6)
+#### 8.2.1 Engine -- 0x0209 (DLC=6)
 
 ```
 Byte  Bits     Field   Type     Description
 0     [7:0]    RPM     uint16   Engine RPM (high byte)
 1     [7:0]    RPM              Engine RPM (low byte)
-2     —        —       —        (unused)
-3     —        —       —        (unused)
+2     --       --      --       (unused)
+3     --       --      --       (unused)
 4     [2:0]    Gear    uint8    Gear position (0=N, 1-6, 7=invalid)
-5     —        —       —        (unused)
+5     --       --      --       (unused)
 ```
 
 - RPM raw: `(data[0] << 8) | data[1]`
-- Gear: `data[4] & 0x07` — value 7 is rejected as invalid (transitioning between gears)
+- Gear: `data[4] & 0x07` -- value 7 is rejected as invalid (indicates the transmission is transitioning between gears). When gear value 7 is encountered, the previous gear value is retained.
 
-#### 8.2.2 Throttle — 0x0215 (DLC=8)
+#### 8.2.2 Throttle -- 0x0215 (DLC=8)
 
 ```
 Byte  Bits     Field     Type     Description
@@ -550,8 +600,8 @@ Byte  Bits     Field     Type     Description
 1     [7:0]    TPS                Throttle Position Sensor (low byte)
 2     [7:0]    APS       uint16   Accelerator Position Sensor (high byte)
 3     [7:0]    APS                Accelerator Position Sensor (low byte)
-4     —        —         —        (unused)
-5     —        —         —        (unused)
+4     --       --        --       (unused)
+5     --       --        --       (unused)
 6     [6:5]    Launch    uint8    Launch control active (non-zero = active)
 7     [5]      TCS       bit      Traction Control System active
 7     [4]      SCS       bit      Slide Control System active
@@ -565,7 +615,7 @@ Byte  Bits     Field     Type     Description
 - SCS: `(data[7] >> 4) & 1`
 - LIF: `(data[7] >> 3) & 1`
 
-#### 8.2.3 Temperature/Fuel — 0x023E (DLC=4)
+#### 8.2.3 Temperature/Fuel -- 0x023E (DLC=4)
 
 ```
 Byte  Bits     Field         Type     Description
@@ -577,9 +627,11 @@ Byte  Bits     Field         Type     Description
 
 - Water temp raw: `data[0]`
 - Intake temp raw: `data[1]`
-- Fuel delta: `(data[2] << 8) | data[3]` — this is a **delta** value, NOT absolute. See [Section 8.3](#83-fuel-accumulator).
+- Fuel delta: `(data[2] << 8) | data[3]` -- this is a **delta** value, NOT absolute. See [Section 8.3](#83-fuel-accumulator).
 
-#### 8.2.4 Acceleration — 0x0250 (DLC=8)
+Note: The temperature values are single bytes (uint8), not 16-bit values. This is confirmed by disassembly of the native implementation.
+
+#### 8.2.4 Acceleration -- 0x0250 (DLC=8)
 
 ```
 Byte  Bits     Field   Type     Description
@@ -587,19 +639,19 @@ Byte  Bits     Field   Type     Description
 1     [7:0]    ACC_X            Longitudinal acceleration (low byte)
 2     [7:0]    ACC_Y   uint16   Lateral acceleration (high byte)
 3     [7:0]    ACC_Y            Lateral acceleration (low byte)
-4-7   —        —       —        (unused)
+4-7   --       --      --       (unused)
 ```
 
 - ACC_X raw: `(data[0] << 8) | data[1]`
 - ACC_Y raw: `(data[2] << 8) | data[3]`
 
-#### 8.2.5 IMU — 0x0258 (DLC=8)
+#### 8.2.5 IMU -- 0x0258 (DLC=8)
 
 ```
 Byte  Bits     Field   Type     Description
-0-3   —        LEAN    packed   Lean angle (packed format, see below)
-4     —        —       —        (unused)
-5     —        —       —        (unused)
+0-3   --       LEAN    packed   Lean angle (packed format, see below)
+4     --       --      --       (unused)
+5     --       --      --       (unused)
 6     [7:0]    PITCH   uint16   Pitch rate (high byte)
 7     [7:0]    PITCH            Pitch rate (low byte)
 ```
@@ -607,12 +659,12 @@ Byte  Bits     Field   Type     Description
 - PITCH raw: `(data[6] << 8) | data[7]`
 - LEAN decoding requires a special algorithm:
 
-**LEAN Decoding Algorithm:**
+**LEAN Decoding Algorithm (Absolute):**
 
-The lean angle is encoded in a packed format across bytes 0-3, with a deadband and truncation applied:
+The lean angle is encoded in a packed format across bytes 0-3, with a deadband and truncation applied. This algorithm produces an absolute lean value (always >= 9000):
 
 ```python
-def decode_lean(data):
+def decode_lean_absolute(data):
     b0, b1, b2, b3 = data[0], data[1], data[2], data[3]
 
     # Step 1: Extract two packed values from interleaved nibbles
@@ -638,9 +690,45 @@ def decode_lean(data):
     return (9000 + deviation_rounded) & 0xFFFF
 ```
 
-The output value 9000 represents upright (0 degrees lean). Apply the calibration formula `(raw / 100.0) - 90.0` to convert to degrees.
+The output value 9000 represents upright (0 degrees lean). Apply the calibration formula `(raw / 100.0) - 90.0` to convert to degrees. This is the algorithm used by the native implementation, confirmed by disassembly.
 
-#### 8.2.6 Brake — 0x0260 (DLC=8)
+**LEAN Signed Variant:**
+
+The absolute algorithm above always produces values >= 9000, losing the lean direction. A signed variant preserves the direction of lean (left vs. right):
+
+```python
+def decode_lean_signed(data):
+    b0, b1, b2, b3 = data[0], data[1], data[2], data[3]
+
+    # Steps 1-2: Same extraction as absolute
+    val1_part = (b0 << 4) | (b2 & 0x0F)
+    val1 = val1_part << 8
+    val2 = ((b1 & 0x0F) << 4) | (b3 >> 4)
+    sum_val = (val1 + val2) & 0xFFFF
+
+    # Step 3: Compute deviation from upright
+    if sum_val < 9000:
+        deviation = 9000 - sum_val
+    else:
+        deviation = (sum_val - 9000) & 0xFFFF
+
+    # Step 4: Apply deadband
+    if deviation <= 499:
+        return 9000  # Upright
+
+    # Step 5: Truncate to nearest 100
+    deviation_rounded = deviation - (deviation % 100)
+
+    # Step 6: Preserve direction
+    if sum_val < 9000:
+        return 9000 - deviation_rounded  # Lean one direction
+    else:
+        return 9000 + deviation_rounded  # Lean the other direction
+```
+
+The signed variant is NOT produced by the native implementation -- it is an extension. After calibration with `(raw / 100.0) - 90.0`, positive values indicate lean in one direction and negative values indicate lean in the other.
+
+#### 8.2.6 Brake -- 0x0260 (DLC=8)
 
 ```
 Byte  Bits     Field        Type     Description
@@ -648,10 +736,10 @@ Byte  Bits     Field        Type     Description
 1     [7:0]    FrontBrake            Front brake pressure (low byte)
 2     [7:0]    RearBrake    uint16   Rear brake pressure (high byte)
 3     [7:0]    RearBrake             Rear brake pressure (low byte)
-4-7   —        —            —        (unused)
+4-7   --       --           --       (unused)
 ```
 
-#### 8.2.7 Wheel Speed — 0x0264 (DLC=4)
+#### 8.2.7 Wheel Speed -- 0x0264 (DLC=4)
 
 ```
 Byte  Bits     Field        Type     Description
@@ -661,20 +749,20 @@ Byte  Bits     Field        Type     Description
 3     [7:0]    RearSpeed             Rear wheel speed (low byte)
 ```
 
-#### 8.2.8 ABS Status — 0x0268 (DLC=6)
+#### 8.2.8 ABS Status -- 0x0268 (DLC=6)
 
 ```
 Byte  Bits     Field   Type  Description
-0-3   —        —       —     (unused)
+0-3   --       --      --    (unused)
 4     [0]      R_ABS   bit   Rear ABS active
 4     [1]      F_ABS   bit   Front ABS active
-5     —        —       —     (unused)
+5     --       --      --    (unused)
 ```
 
 - R_ABS: `data[4] & 1`
 - F_ABS: `(data[4] >> 1) & 1`
 
-Note: R_ABS is bit 0, F_ABS is bit 1 (not the other way around).
+Note: R_ABS is bit 0, F_ABS is bit 1 (not the other way around). This counterintuitive bit ordering is confirmed by disassembly of the native implementation.
 
 ### 8.3 Fuel Accumulator
 
@@ -685,7 +773,7 @@ fuel_accumulator += fuel_delta     // from each 0x023E message
 fuel_raw = fuel_accumulator        // stored in telemetry state
 ```
 
-The fuel accumulator **resets to 0** at each lap boundary (finish line crossing). This gives per-lap fuel consumption.
+The fuel accumulator resets to 0 at each lap boundary. In continuous (single-pass) processing, this reset occurs at each finish line crossing. In per-lap processing (as the native implementation does), the reset occurs implicitly via state initialization at the start of each lap.
 
 ---
 
@@ -696,7 +784,7 @@ Raw sensor values are converted to engineering units using these formulas:
 | Channel | Raw Source | Formula | Output Unit |
 |---------|-----------|---------|-------------|
 | GPS Speed | speed_knots (from GPRMC) | `raw * 1.852` | km/h |
-| RPM | CAN 0x0209 bytes 0-1 | `raw / 2.56` | RPM |
+| RPM | CAN 0x0209 bytes 0-1 | `int(raw / 2.56)` | RPM |
 | Throttle Grip (APS) | CAN 0x0215 bytes 2-3 | `((raw / 8.192) * 100.0) / 84.96` | % |
 | Throttle (TPS) | CAN 0x0215 bytes 0-1 | `((raw / 8.192) * 100.0) / 84.96` | % |
 | Front Wheel Speed | CAN 0x0264 bytes 0-1 | `(raw / 64.0) * 3.6` | km/h |
@@ -710,15 +798,21 @@ Raw sensor values are converted to engineering units using these formulas:
 | Water Temperature | CAN 0x023E byte 0 | `(raw / 1.6) - 30.0` | Celsius |
 | Intake Temperature | CAN 0x023E byte 1 | `(raw / 1.6) - 30.0` | Celsius |
 | Fuel Consumption | CAN 0x023E bytes 2-3 | `raw / 100.0` | cc |
-| Gear | CAN 0x0209 byte 4 | direct (0-6) | — |
+| Gear | CAN 0x0209 byte 4 | direct (0-6) | -- |
+
+**Notes:**
+- RPM is truncated to integer after division (e.g., `int(25601 / 2.56)` = 10000, not 10000.39).
+- Lean angle formula applies to both the absolute and signed lean values. The same formula `(raw / 100.0) - 90.0` converts both; the difference is that the absolute lean always produces values >= 0.0 degrees, while the signed lean can produce negative values.
+- All calibration formulas have been confirmed by disassembly of the native implementation and verified against the Kotlin calibration layer.
 
 **Calibration examples:**
 
 | Channel | Raw Value | Formula | Calibrated |
 |---------|-----------|---------|------------|
-| RPM | 25600 | 25600 / 2.56 | 10000 RPM |
-| Lean | 12000 | (12000 / 100) - 90 | 30.0 deg |
-| Lean | 9000 | (9000 / 100) - 90 | 0.0 deg (upright) |
+| RPM | 25600 | int(25600 / 2.56) | 10000 RPM |
+| Lean (absolute) | 12000 | (12000 / 100) - 90 | 30.0 deg |
+| Lean (absolute) | 9000 | (9000 / 100) - 90 | 0.0 deg (upright) |
+| Lean (signed) | 6000 | (6000 / 100) - 90 | -30.0 deg |
 | Pitch | 30000 | (30000 / 100) - 300 | 0.0 deg/s |
 | Accel | 7000 | (7000 / 1000) - 7 | 0.0 G |
 | Water Temp | 176 | (176 / 1.6) - 30 | 80.0 C |
@@ -745,7 +839,7 @@ Compute which side of the finish line each point is on using the cross product:
 side(lat, lon) = (P2.lon - P1.lon) * (lat - P1.lat) - (P2.lat - P1.lat) * (lon - P1.lon)
 ```
 
-If `side(prev) * side(curr) >= 0`, no crossing occurred.
+If `side(prev) * side(curr) >= 0`, no crossing occurred (both points are on the same side of the line).
 
 **Step 2: Parametric intersection**
 
@@ -773,7 +867,17 @@ crossing = (0 <= t <= 1)
 
 ### 10.4 Initial Position
 
-The crossing algorithm requires a previous position. Initialize `prev_lat` and `prev_lon` to 0.0. Skip the crossing check for the first emitted record.
+The crossing algorithm requires a previous position. Initialize `prev_lat` and `prev_lon` to 0.0. The first emitted record cannot produce a crossing because the trajectory from (0.0, 0.0) to the first GPS position will not intersect a track-local finish line segment.
+
+### 10.5 Native Implementation Differences
+
+The native implementation does NOT perform GPS-based finish-line crossing detection for lap counting. Instead, it relies exclusively on **type-5 Lap marker records** emitted by the CCU hardware. The native implementation processes each lap independently by:
+
+1. Scanning the file for type-5 records to determine lap count (N markers = N+1 laps)
+2. Seeking to each lap's starting position
+3. Processing records within each lap range with full state reset
+
+GPS-based crossing detection is a parser-side feature that provides lap detection when type-5 markers are absent or when single-pass processing is preferred.
 
 ---
 
@@ -785,7 +889,7 @@ The file may end with a JSON object. The JSON starts immediately after the last 
 
 **Locating the footer:** Scan backwards from EOF for `{"Attribute"` or simply attempt to parse JSON from the last few hundred bytes.
 
-**Example footer (370 bytes):**
+**Example footer structure:**
 
 ```json
 {
@@ -819,21 +923,38 @@ The file may end with a JSON object. The JSON starts immediately after the last 
 | User | Rider identifier | "R122" |
 | Temperature | Ambient temperature (user-entered) | "" |
 
+The footer is optional. Files may not contain a JSON footer at all, and parsers should handle its absence gracefully.
+
 ---
 
 ## 12. Edge Cases
 
 ### 12.1 Short Files / No GPS
 
-Some CTRK files are very short (a few hundred bytes) and contain no GPRMC sentences. These files produce no telemetry output because the `has_gprmc` condition is never met. This is correct behavior.
+Some CTRK files are very short and contain no GPRMC sentences. These files produce no telemetry output because the `has_gprmc` condition is never met. This is correct behavior -- without GPS data, the emission logic has no position information to include in output records.
 
 ### 12.2 Default Date (2000-01-01)
 
-Files recorded when the CCU has not synchronized its RTC show a default date of 2000-01-01. The timestamp computation handles this correctly — it produces epoch_ms values in the year 2000 range. Parse these files normally.
+Files recorded when the CCU has not synchronized its RTC show a default date of 2000-01-01. The timestamp computation handles this correctly -- it produces epoch_ms values in the year 2000 range. Parse these files normally.
 
 ### 12.3 Millis Wrapping
 
-See [Section 5.3](#53-millis-wrapping-hardware-edge-case). When detected, add 1000ms to compensate.
+See [Section 5.3](#53-millis-wrapping-hardware-edge-case). The CCU's non-atomic timestamp capture can cause millis to wrap from ~999 to ~0 while the seconds field has not yet incremented. The recommended fix is to add 1000ms when `curr_millis < prev_millis` within the same second. The native implementation does not apply this correction, which can result in data loss for the affected lap.
+
+### 12.4 State Initialization Artifacts
+
+When processing laps independently with full state reset (as the native implementation does), the first few records of each lap (except the first lap if CAN data arrives before GPS) contain physically impossible values due to zero initialization:
+
+| Channel | Initial Raw | Calibrated | Physical Reality |
+|---------|------------|------------|------------------|
+| acc_x | 0 | -7.0 G | Impossible |
+| acc_y | 0 | -7.0 G | Impossible |
+| lean | 0 | -90.0 degrees | Impossible (bike on its side) |
+| pitch | 0 | -300.0 deg/s | Impossible |
+| water_temp | 0 | -30.0 C | Below freezing |
+| intake_temp | 0 | -30.0 C | Below freezing |
+
+These artifacts are an inherent consequence of per-lap state reset. A single-pass parser that carries state forward across laps avoids this issue.
 
 ---
 
@@ -849,33 +970,35 @@ lap,time_ms,latitude,longitude,gps_speed_kmh,rpm,throttle_grip,throttle,water_te
 
 | Field | Type | Unit | Description |
 |-------|------|------|-------------|
-| lap | int | — | Lap number (1-based, increments at each finish line crossing) |
+| lap | int | -- | Lap number (1-based, increments at each finish line crossing) |
 | time_ms | int64 | ms | Unix timestamp in milliseconds (UTC) |
-| latitude | float | degrees | GPS latitude (WGS84, 6 decimal places) |
-| longitude | float | degrees | GPS longitude (WGS84, 6 decimal places) |
-| gps_speed_kmh | float | km/h | GPS ground speed |
-| rpm | int | RPM | Engine RPM |
-| throttle_grip | float | % | Accelerator position (APS) |
-| throttle | float | % | Throttle valve position (TPS) |
-| water_temp | float | Celsius | Coolant temperature |
-| intake_temp | float | Celsius | Intake air temperature |
-| front_speed_kmh | float | km/h | Front wheel speed |
-| rear_speed_kmh | float | km/h | Rear wheel speed |
-| fuel_cc | float | cc | Cumulative fuel consumption (resets per lap) |
-| lean_deg | float | degrees | Lean angle absolute value |
-| lean_signed_deg | float | degrees | Lean angle with direction preserved |
-| pitch_deg_s | float | deg/s | Pitch rate |
-| acc_x_g | float | G | Longitudinal acceleration |
-| acc_y_g | float | G | Lateral acceleration |
-| front_brake_bar | float | bar | Front brake hydraulic pressure |
-| rear_brake_bar | float | bar | Rear brake hydraulic pressure |
-| gear | int | — | Current gear (0=Neutral, 1-6) |
-| f_abs | bool | — | Front ABS active |
-| r_abs | bool | — | Rear ABS active |
-| tcs | int | — | Traction control active |
-| scs | int | — | Slide control active |
-| lif | int | — | Lift control active |
-| launch | int | — | Launch control active |
+| latitude | float | degrees | GPS latitude (WGS84, 6 decimal places); 9999.0 = no fix |
+| longitude | float | degrees | GPS longitude (WGS84, 6 decimal places); 9999.0 = no fix |
+| gps_speed_kmh | float | km/h | GPS ground speed (converted from knots) |
+| rpm | int | RPM | Engine RPM (calibrated, truncated to integer) |
+| throttle_grip | float | % | Accelerator position (APS, calibrated) |
+| throttle | float | % | Throttle valve position (TPS, calibrated) |
+| water_temp | float | Celsius | Coolant temperature (calibrated) |
+| intake_temp | float | Celsius | Intake air temperature (calibrated) |
+| front_speed_kmh | float | km/h | Front wheel speed (calibrated) |
+| rear_speed_kmh | float | km/h | Rear wheel speed (calibrated) |
+| fuel_cc | float | cc | Cumulative fuel consumption (resets per lap, calibrated) |
+| lean_deg | float | degrees | Lean angle magnitude (absolute, always >= 0.0; calibrated) |
+| lean_signed_deg | float | degrees | Lean angle with direction preserved (calibrated; positive and negative indicate opposite lean directions) |
+| pitch_deg_s | float | deg/s | Pitch rate (calibrated) |
+| acc_x_g | float | G | Longitudinal acceleration (calibrated) |
+| acc_y_g | float | G | Lateral acceleration (calibrated) |
+| front_brake_bar | float | bar | Front brake hydraulic pressure (calibrated) |
+| rear_brake_bar | float | bar | Rear brake hydraulic pressure (calibrated) |
+| gear | int | -- | Current gear (0=Neutral, 1-6) |
+| f_abs | bool | -- | Front ABS active (true/false) |
+| r_abs | bool | -- | Rear ABS active (true/false) |
+| tcs | int | -- | Traction control active (0 or 1) |
+| scs | int | -- | Slide control active (0 or 1) |
+| lif | int | -- | Lift control active (0 or 1) |
+| launch | int | -- | Launch control active (0 or 1) |
+
+**Note on lean_signed_deg:** This field is an extension not present in the native implementation's output. The native implementation only produces absolute lean angle (always >= 0 degrees). The signed variant preserves lean direction by using the intermediate `sum_val` from the LEAN decoding algorithm to determine sign. See [Section 8.2.5](#825-imu----0x0258-dlc8) for the algorithm.
 
 ---
 
@@ -885,3 +1008,4 @@ lap,time_ms,latitude,longitude,gps_speed_kmh,rpm,throttle_grip,throttle,water_te
 2. [NMEA 0183 Standard](https://www.nmea.org/content/STANDARDS/NMEA_0183_Standard)
 3. [CAN Bus Specification (ISO 11898)](https://www.iso.org/standard/63648.html)
 4. [IEEE 754 Floating Point](https://standards.ieee.org/standard/754-2019.html)
+5. Native library: `libSensorsRecordIF.so` from Y-Trac Android APK (`com.yamaha.jp.dataviewer`), analyzed via radare2 disassembly (x86_64 build)

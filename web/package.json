@@ -1,0 +1,31 @@
+{
+  "name": "ctrk-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@astrojs/vue": "^5.0.0",
+    "@ctrk-exporter/astro-integration": "file:../astro-integration",
+    "@ctrk/parser": "file:../parser",
+    "astro": "^5.0.0",
+    "chart.js": "^4.4.1",
+    "leaflet": "^1.9.4",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/leaflet": "^1.9.8",
+    "@types/node": "^20.11.16",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.2"
+  }
+}

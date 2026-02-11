@@ -1,0 +1,32 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import FileUpload from '../components/FileUpload.vue';
+import TelemetryDisplay from '../components/TelemetryDisplay.vue';
+---
+
+<BaseLayout title="CTRK Parser - Example">
+  <h1>CTRK Telemetry Parser</h1>
+
+  <p style="margin-bottom: 2rem; color: #999;">
+    This example demonstrates the <code>@ctrk-exporter/astro-integration</code> package
+    with Vue.js components for parsing Yamaha Y-Trac CTRK telemetry files.
+  </p>
+
+  <FileUpload client:only="vue" />
+  <TelemetryDisplay client:only="vue" />
+
+  <div class="card" style="margin-top: 2rem;">
+    <h2>About</h2>
+    <p>
+      This integration provides a complete solution for parsing CTRK telemetry files
+      in Astro applications with Vue.js components and reactive state management.
+    </p>
+    <ul style="margin-top: 1rem; padding-left: 1.5rem; line-height: 1.8;">
+      <li>100% client-side parsing (no server required)</li>
+      <li>Vue.js composables for reactive state</li>
+      <li>Type-safe TypeScript API</li>
+      <li>Zero runtime dependencies in parser</li>
+      <li>MIT licensed (all dependencies permissive)</li>
+    </ul>
+  </div>
+</BaseLayout>

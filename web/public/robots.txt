@@ -1,0 +1,8 @@
+# robots.txt for CTRK-Exporter Web Edition
+
+User-agent: *
+Allow: /
+
+# Sitemap
+# Update this URL when deploying to production
+# Sitemap: https://your-domain.com/sitemap.xml

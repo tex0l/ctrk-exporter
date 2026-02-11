@@ -48,6 +48,21 @@ This specification covers:
 - Calibration formulas for raw-to-engineering-unit conversion
 - Lap detection via finish line crossing
 
+### 1.3 Implementations
+
+Two production-ready parser implementations exist:
+
+1. **Python Parser** (`src/ctrk_parser.py`) - Reference implementation
+   - Zero dependencies
+   - CLI tool (`ctrk-exporter`)
+   - 94.9% match rate with native library
+
+2. **TypeScript Parser** (`parser/src/`) - Web/Node.js implementation
+   - Platform-agnostic (browser + Node.js)
+   - Zero runtime dependencies
+   - 100% match rate with Python reference
+   - See [TypeScript Parser Documentation](TYPESCRIPT_PARSER.md)
+
 ### 1.3 Conventions
 
 - All multi-byte integers in record headers and file structures are **little-endian** (LE)
@@ -1004,8 +1019,16 @@ lap,time_ms,latitude,longitude,gps_speed_kmh,rpm,throttle_grip,throttle,water_te
 
 ## References
 
+### Standards and Protocols
+
 1. [Yamaha Y-Trac Product Page](https://www.yamaha-motor.eu/fr/fr/y-trac/)
 2. [NMEA 0183 Standard](https://www.nmea.org/content/STANDARDS/NMEA_0183_Standard)
 3. [CAN Bus Specification (ISO 11898)](https://www.iso.org/standard/63648.html)
 4. [IEEE 754 Floating Point](https://standards.ieee.org/standard/754-2019.html)
 5. Native library: `libSensorsRecordIF.so` from Y-Trac Android APK (`com.yamaha.jp.dataviewer`), analyzed via radare2 disassembly (x86_64 build)
+
+### Parser Implementations
+
+- [Python Parser](/Users/timotheerebours/PersonalProjects/louis-file/src/ctrk_parser.py) - Reference implementation
+- [TypeScript Parser](/Users/timotheerebours/PersonalProjects/louis-file/parser/src/) - Web/Node.js implementation
+- [TypeScript Parser Documentation](TYPESCRIPT_PARSER.md) - Complete API reference and validation results

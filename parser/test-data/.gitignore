@@ -1,0 +1,10 @@
+# Ignore CTRK test files (they are symlinks to ../../input/ which is gitignored)
+*.CTRK
+
+# Ignore Python CSV output (can be regenerated)
+python-output/*.csv
+
+# Keep directory structure
+!.gitignore
+!README.md
+!python-output/.gitkeep

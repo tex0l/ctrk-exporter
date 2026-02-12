@@ -24,7 +24,7 @@
 
 ### 1.1 Purpose
 
-The TypeScript parser (`@ctrk/parser`) is a production-ready implementation of the CTRK file format parser, designed for use in both Node.js and browser environments. It provides byte-for-byte compatible output with the Python reference implementation while maintaining platform-agnostic operation.
+The TypeScript parser (`@tex0l/ctrk-parser`) is a production-ready implementation of the CTRK file format parser, designed for use in both Node.js and browser environments. It provides byte-for-byte compatible output with the Python reference implementation while maintaining platform-agnostic operation.
 
 ### 1.2 Key Features
 
@@ -295,7 +295,7 @@ The 100% match rate confirms:
 
 ```typescript
 import { readFileSync } from 'fs';
-import { CTRKParser, Calibration } from '@ctrk/parser';
+import { CTRKParser, Calibration } from '@tex0l/ctrk-parser';
 
 // Read CTRK file
 const data = new Uint8Array(readFileSync('session.CTRK'));
@@ -321,7 +321,7 @@ for (const record of records) {
 ### 4.2 Browser Usage
 
 ```typescript
-import { CTRKParser } from '@ctrk/parser';
+import { CTRKParser } from '@tex0l/ctrk-parser';
 
 // Fetch CTRK file
 const response = await fetch('session.CTRK');
@@ -372,7 +372,7 @@ function handleFileUpload(event: Event) {
 ### 4.4 Custom Calibration
 
 ```typescript
-import { CTRKParser, Calibration } from '@ctrk/parser';
+import { CTRKParser, Calibration } from '@tex0l/ctrk-parser';
 
 const parser = new CTRKParser(data);
 const records = parser.parse();
@@ -469,7 +469,7 @@ The parser is distributed as ES modules (ESM):
 
 ```html
 <script type="module">
-  import { CTRKParser } from './node_modules/@ctrk/parser/dist/index.js';
+  import { CTRKParser } from './node_modules/@tex0l/ctrk-parser/dist/index.js';
   // ... use parser
 </script>
 ```
@@ -643,23 +643,21 @@ This produces identical results for all test cases.
 ### 9.1 Documentation
 
 - [CTRK Format Specification v2.2](/Users/timotheerebours/PersonalProjects/louis-file/docs/CTRK_FORMAT_SPECIFICATION.md)
-- [Validation Report](/Users/timotheerebours/PersonalProjects/louis-file/parser/VALIDATION.md)
-- [Python Reference Implementation](/Users/timotheerebours/PersonalProjects/louis-file/src/ctrk_parser.py)
+- [Python Reference Implementation](../exploration/src/ctrk_parser.py)
 
 ### 9.2 Test Results
 
-- [Validation Report JSON](/Users/timotheerebours/PersonalProjects/louis-file/parser/test-results/validation-report.json)
-- [Test Data Inventory](/Users/timotheerebours/PersonalProjects/louis-file/parser/test-data/README.md)
+- [Test Data Inventory](../packages/ctrk-parser/test-data/README.md)
 
 ### 9.3 Source Code
 
-- [Parser Source](/Users/timotheerebours/PersonalProjects/louis-file/parser/src/)
-- [Parser README](/Users/timotheerebours/PersonalProjects/louis-file/parser/README.md)
+- [Parser Source](../packages/ctrk-parser/src/)
+- [Parser README](../packages/ctrk-parser/README.md)
 
 ### 9.4 Related Projects
 
-- [Python Parser (ctrk-exporter)](/Users/timotheerebours/PersonalProjects/louis-file/ctrk-exporter)
-- [Native Library Analysis](/Users/timotheerebours/PersonalProjects/louis-file/docs/NATIVE_LIBRARY.md)
+- [Python Parser (ctrk-exporter)](../exploration/ctrk-exporter)
+- [Native Library Analysis](../exploration/docs/NATIVE_LIBRARY.md)
 
 ---
 

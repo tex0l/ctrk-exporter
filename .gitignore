@@ -5,19 +5,24 @@ input/
 # Claude Code instructions
 CLAUDE.md
 
-# Python
+# Node.js
+node_modules/
+dist/
+package-lock.json
+
+# Python (exploration)
 __pycache__/
 *.py[cod]
 .venv/
 
-# Android
-android_app/.gradle/
-android_app/**/build/
-android_app/app/src/main/jniLibs/**/*.so
+# Android (exploration)
+exploration/android_app/.gradle/
+exploration/android_app/**/build/
+exploration/android_app/app/src/main/jniLibs/**/*.so
 
 # APK analysis (proprietary)
-apk_analysis/*.apk
-apk_analysis/ytrac_*/
+exploration/apk_analysis/*.apk
+exploration/apk_analysis/ytrac_*/
 
 # macOS
 .DS_Store

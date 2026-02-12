@@ -1,0 +1,73 @@
+{
+  "name": "@tex0l/ctrk-astro",
+  "version": "0.1.0",
+  "description": "Astro integration for CTRK telemetry parser with Vue.js components",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./parser": {
+      "import": "./dist/parser.js",
+      "types": "./dist/parser.d.ts"
+    },
+    "./composables": {
+      "import": "./dist/composables/index.js",
+      "types": "./dist/composables/index.d.ts"
+    },
+    "./utils": {
+      "import": "./dist/utils.js",
+      "types": "./dist/utils.d.ts"
+    },
+    "./lib/*": {
+      "import": "./dist/lib/*.js",
+      "types": "./dist/lib/*.d.ts"
+    },
+    "./components/*": "./src/components/*",
+    "./workers/*": "./src/workers/*",
+    "./styles/*": "./src/styles/*"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "astro",
+    "astro-integration",
+    "ctrk",
+    "telemetry",
+    "vue",
+    "yamaha",
+    "y-trac"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "@astrojs/vue": "^5.0.0",
+    "astro": "^5.0.0",
+    "vue": "^3.5.0",
+    "chart.js": "^4.4.0",
+    "leaflet": "^1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "chart.js": { "optional": true },
+    "leaflet": { "optional": true }
+  },
+  "dependencies": {
+    "@tex0l/ctrk-parser": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.8",
+    "@types/node": "^20.11.16",
+    "typescript": "^5.3.3"
+  }
+}

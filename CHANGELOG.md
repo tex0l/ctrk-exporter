@@ -1,94 +1,133 @@
 # Changelog
 
-## v0.3.0 — 5 février 2026 (état actuel)
+## v0.5.0 — February 2026
 
-Parser v7 — 1031 lignes | Spec v2.1 | 94.9% match rate (47 fichiers, 22 canaux validés vs natif)
+Directory rename + ctrk-web merge into ctrk-astro.
 
-### Parser
+### Structure
 
-- **Mode natif per-lap** (`--native`) : nouveau chemin de parsing qui réinitialise l'état à chaque tour, répliquant l'architecture per-lap de `libSensorsRecordIF.so`. Atteint 95.6% de match global et 98.7% sur `fuel_cc` (vs 86.5% en mode continu).
-- **Décodage structuré du header** (`_find_data_start`) : remplace le pattern-matching naïf par une lecture correcte des entrées header (RECORDLINE, CCU_VERSION, etc.) à partir de l'offset 0x34.
-- **Conversion timestamp native** (`_get_time_data`) : implémente l'algorithme exact du natif (`GetTimeData` @ 0xdf40) avec gestion du millis wrapping (retour en arrière du compteur millisecondes).
-- **État initial à zéro** : les valeurs par défaut de lean, pitch, acc_x, acc_y passent de leur offset neutre (9000, 30000, 7000, 7000) à 0, en accord avec le `memset(0)` du natif.
-- **Reset de l'horloge d'émission** aux marqueurs type-5 (Lap), améliorant le match RPM de ~77% à ~83%.
-- **Suppression du code mort** : import `re` inutilisé, dict `CAN_DLC` jamais référencé, compteurs (`gps_count`, `can_count`, `checksum_failures`) incrémentés mais jamais lus dans `_parse_lap_range`, fonction `ensure_output_dir()` orpheline, variables inutilisées.
-- **Lean signé** (`lean_signed_deg`) : champ dérivé (pas un nouveau canal CAN) préservant la direction de l'inclinaison. Même données CAN 0x0258, même deadband et arrondi, mais le signe de `sum_val - 9000` est conservé. Absent de la sortie native.
-- **Docstring** : v6 → v7.
-
-### CLI
-
-- **Flag `--native`** sur la commande `parse` pour activer le mode per-lap.
-- Import `re` déplacé au top-level, `import os` inutilisé supprimé.
-- Variables inutilisées `setup_parser` / `clean_parser` nettoyées.
-
-### Spécification format (v2.0 → v2.1)
-
-- **v2.0** : réécriture complète. Header structuré 14 octets au lieu de pattern-matching. Documentation de : coordonnées GPS void (9999, 9999), accumulateur fuel avec reset par tour, exemples hex complets à partir de fichiers réels.
-- **v2.1** : comportements natifs uniquement — vérification delta temporelle à 3 bandes (seuil secondaire 10ms @ 0xaf1b), limite compteur lignes (72000 @ 0xaece), rejet gear=7 (0xe163), handler CAN 0x051b (0xe102).
-
-### Documentation
-
-- **Nouveau** : `docs/REVIEW_REPORT.md` — rapport de validation avec matrice de conformité spec.
-- **Nouveau** : `docs/product/BACKLOG.md` — backlog produit priorisé (7 epics, decision log).
-- **Nouveau** : 3 epics détaillés (EPIC-001 Session Summary, EPIC-002 Export Formats, EPIC-003 Python Package).
-- **Nouveau** : `src/test_parser_comparison.py` — suite de comparaison Python vs Natif (361 lignes), alignement GPS, tolerances par canal.
-- **Supprimé** : `docs/TODO.md` (remplacé par le backlog).
-- **Harmonisation** : nombres canoniques (47 fichiers, 22 canaux, 420K+ records, 94.9%) unifiés dans tous les documents. Correction de l'inversion acc_x (Longitudinal) / acc_y (Latéral) dans le README.
-- **NATIVE_LIBRARY.md** : sections dupliquées (timestamp CAN, formule LEAN) remplacées par des renvois à la spec. Match rate corrigé de 95.37% à 94.9%.
-- **EPIC-001** : références mortes nettoyées (TASK-H3, Rec #5, EPIC-004/005).
-- **Agents** (`.claude/agents/`) : CLI correctement décrite comme Python (pas Bash), compteurs de lignes mis à jour, fichiers référencés corrigés.
-- **Suppression des mentions .CCT** : le format `.CCT` n'est ni testé ni supporté par le parser Python.
+- Renamed package directories to match package names: `ctrk-parser/`, `ctrk-cli/`, `ctrk-astro/`
+- Merged `@tex0l/ctrk-web` into `@tex0l/ctrk-astro` — all Vue components, lib utilities, workers, and styles are now importable exports from the Astro package
+- Web app moved to `packages/ctrk-astro/examples/web/` as a workspace example
+- `@tex0l/ctrk-astro` now has 3 packages instead of 4
+- New package exports: `./lib/*`, `./components/*`, `./workers/*`, `./styles/*`
+- Added `chart.js` and `leaflet` as optional peer dependencies on ctrk-astro
+- Integration hook now configures Vite worker format (`es`)
 
 ---
 
-## v0.2.0 — 27 janvier 2026
+## v0.4.0 — February 2026
 
-Parser v6 — 836 lignes | Spec v1.3 | Validation sur 42 fichiers
+Monorepo reorganization under `@tex0l` scope.
 
-### Parser
+### Structure
 
-- **Découverte de la structure timestamp CAN** : les octets `E9 07` n'étaient pas un magic number mais l'année 2025 en little-endian (`uint16`, 0x07E9). Le parser lit maintenant le year comme un vrai champ, supportant **tous les fichiers quel que soit la date d'enregistrement** (pas seulement 2025).
-- **Correction de l'ordre des bits ABS** : `R_ABS = bit0`, `F_ABS = bit1` (inversés auparavant), conformément au désassemblage natif @ 0xe2b7.
-- **Support multi-fichiers** : `./ctrk-exporter parse *.CTRK` traite tous les fichiers d'un coup avec sortie dans un répertoire.
-- **Alignement des noms** entre parser et spécification.
+- Reorganized into npm workspaces monorepo with 4 packages
+- `@tex0l/ctrk-parser` — Platform-agnostic CTRK file parser (lib only, no CLI)
+- `@tex0l/ctrk-cli` — CLI extracted from parser into its own package
+- `@tex0l/ctrk-astro` — Astro/Vue integration (renamed from `@ctrk-exporter/astro-integration`)
+- `@tex0l/ctrk-web` — Static web app for interactive analysis (renamed from `ctrk-web`)
+- Original Python parser and R&D work moved to `exploration/`
 
 ### Documentation
 
-- **Spec v1.3** : structure complète des timestamps CAN documentée (8 octets : sec, min, hour, weekday, day, month, year LE).
-- **NATIVE_LIBRARY.md** : validation étendue à 42 fichiers sur 4 mois (juillet-octobre 2025), 21 canaux, interface JNI documentée (`GetTotalLap`, `GetLapTimeRecordData`, `GetSensorsRecordData`), architectures supportées.
-- **Nouveau** : `docs/TODO.md` — suivi des tâches.
+- README rewritten as TS-centric monorepo overview
+- CHANGELOG translated to English
+- CLAUDE.md updated for new layout
 
 ---
 
-## v0.1.0 — 26 janvier 2026
+## Exploration Phase
 
-Parser v6 — 836 lignes | Spec v1.2 | Validation sur 1 fichier
+## v0.3.0 — February 5, 2026 (current state)
+
+Parser v7 — 1031 lines | Spec v2.1 | 94.9% match rate (47 files, 22 channels validated vs native)
 
 ### Parser
 
-- **8 CAN IDs décodés** : 0x0209 (RPM/Gear), 0x0215 (Throttle/TCS/SCS/LIF/Launch), 0x023E (Temp/Fuel), 0x0250 (Accel X/Y), 0x0258 (Lean/Pitch), 0x0260 (Brakes), 0x0264 (Wheel Speed), 0x0268 (ABS). Tous vérifiés par désassemblage de `libSensorsRecordIF.so`.
-- **21 canaux télémétrie** : 15 analogiques + 6 booléens, avec formules de calibration complètes.
-- **Détection de tours** par croisement de la ligne d'arrivée GPS (coordonnées extraites du header).
-- **Accumulateur fuel** avec reset par tour.
-- **Algorithme LEAN natif** : deadband ±5°, arrondi à la centaine, nibble interleaving.
-- **Export CSV** calibré (26 colonnes) + export brut optionnel (`--raw`).
+- **Native per-lap mode** (`--native`): new parsing path that resets state at each lap, replicating the per-lap architecture of `libSensorsRecordIF.so`. Achieves 95.6% global match rate and 98.7% on `fuel_cc` (vs 86.5% in continuous mode).
+- **Structured header decoding** (`_find_data_start`): replaces naive pattern-matching with proper reading of header entries (RECORDLINE, CCU_VERSION, etc.) starting at offset 0x34.
+- **Native timestamp conversion** (`_get_time_data`): implements exact native algorithm (`GetTimeData` @ 0xdf40) with millis wrapping handling (millisecond counter rollback).
+- **Zero initial state**: default values for lean, pitch, acc_x, acc_y changed from their neutral offset (9000, 30000, 7000, 7000) to 0, in accordance with native `memset(0)`.
+- **Emission clock reset** at type-5 (Lap) markers, improving RPM match from ~77% to ~83%.
+- **Dead code removal**: unused `re` import, unreferenced `CAN_DLC` dict, counters (`gps_count`, `can_count`, `checksum_failures`) incremented but never read in `_parse_lap_range`, orphaned `ensure_output_dir()` function, unused variables.
+- **Signed lean** (`lean_signed_deg`): derived field (not a new CAN channel) preserving lean direction. Same CAN data 0x0258, same deadband and rounding, but sign of `sum_val - 9000` is preserved. Absent from native output.
+- **Docstring**: v6 → v7.
 
 ### CLI
 
-- 5 commandes : `parse`, `graph`, `android setup`, `android convert`, `android clean`.
-- `parse` : fichier unique avec flag `--raw` et option `-o`.
-- `graph` : génération de graphiques par tour (matplotlib/pandas, nécessite venv).
-- `android` : pont vers la librairie native via émulateur Android (macOS ARM uniquement).
+- **`--native` flag** on `parse` command to enable per-lap mode.
+- `re` import moved to top-level, unused `import os` removed.
+- Unused variables `setup_parser` / `clean_parser` cleaned up.
+
+### Format Specification (v2.0 → v2.1)
+
+- **v2.0**: complete rewrite. Structured 14-byte header instead of pattern-matching. Documentation of: void GPS coordinates (9999, 9999), fuel accumulator with per-lap reset, complete hex examples from real files.
+- **v2.1**: native behaviors only — 3-band time delta verification (secondary threshold 10ms @ 0xaf1b), line counter limit (72000 @ 0xaece), gear=7 rejection (0xe163), CAN 0x051b handler (0xe102).
+
+### Documentation
+
+- **New**: `docs/REVIEW_REPORT.md` — validation report with spec compliance matrix.
+- **New**: `docs/product/BACKLOG.md` — prioritized product backlog (7 epics, decision log).
+- **New**: 3 detailed epics (EPIC-001 Session Summary, EPIC-002 Export Formats, EPIC-003 Python Package).
+- **New**: `src/test_parser_comparison.py` — Python vs Native comparison suite (361 lines), GPS alignment, per-channel tolerances.
+- **Removed**: `docs/TODO.md` (replaced by backlog).
+- **Harmonization**: canonical numbers (47 files, 22 channels, 420K+ records, 94.9%) unified across all documents. Fixed acc_x (Longitudinal) / acc_y (Lateral) inversion in README.
+- **NATIVE_LIBRARY.md**: duplicate sections (CAN timestamp, LEAN formula) replaced with references to spec. Match rate corrected from 95.37% to 94.9%.
+- **EPIC-001**: dead references cleaned up (TASK-H3, Rec #5, EPIC-004/005).
+- **Agents** (`.claude/agents/`): CLI correctly described as Python (not Bash), line counts updated, referenced files corrected.
+- **Removal of .CCT mentions**: the `.CCT` format is neither tested nor supported by the Python parser.
+
+---
+
+## v0.2.0 — January 27, 2026
+
+Parser v6 — 836 lines | Spec v1.3 | Validation on 42 files
+
+### Parser
+
+- **CAN timestamp structure discovery**: the `E9 07` bytes were not a magic number but the year 2025 in little-endian (`uint16`, 0x07E9). The parser now reads year as a proper field, supporting **all files regardless of recording date** (not just 2025).
+- **ABS bit order correction**: `R_ABS = bit0`, `F_ABS = bit1` (previously inverted), conforming to native disassembly @ 0xe2b7.
+- **Multi-file support**: `./ctrk-exporter parse *.CTRK` processes all files at once with output to a directory.
+- **Name alignment** between parser and specification.
+
+### Documentation
+
+- **Spec v1.3**: complete CAN timestamp structure documented (8 bytes: sec, min, hour, weekday, day, month, year LE).
+- **NATIVE_LIBRARY.md**: validation extended to 42 files across 4 months (July-October 2025), 21 channels, JNI interface documented (`GetTotalLap`, `GetLapTimeRecordData`, `GetSensorsRecordData`), supported architectures.
+- **New**: `docs/TODO.md` — task tracking.
+
+---
+
+## v0.1.0 — January 26, 2026
+
+Parser v6 — 836 lines | Spec v1.2 | Validation on 1 file
+
+### Parser
+
+- **8 decoded CAN IDs**: 0x0209 (RPM/Gear), 0x0215 (Throttle/TCS/SCS/LIF/Launch), 0x023E (Temp/Fuel), 0x0250 (Accel X/Y), 0x0258 (Lean/Pitch), 0x0260 (Brakes), 0x0264 (Wheel Speed), 0x0268 (ABS). All verified by disassembly of `libSensorsRecordIF.so`.
+- **21 telemetry channels**: 15 analog + 6 boolean, with complete calibration formulas.
+- **Lap detection** via GPS finish line crossing (coordinates extracted from header).
+- **Fuel accumulator** with per-lap reset.
+- **Native LEAN algorithm**: ±5° deadband, rounding to hundred, nibble interleaving.
+- **CSV export** calibrated (26 columns) + optional raw export (`--raw`).
+
+### CLI
+
+- 5 commands: `parse`, `graph`, `android setup`, `android convert`, `android clean`.
+- `parse`: single file with `--raw` flag and `-o` option.
+- `graph`: per-lap graph generation (matplotlib/pandas, requires venv).
+- `android`: bridge to native library via Android emulator (macOS ARM only).
 
 ### Android Bridge
 
-- App Kotlin complète (`android_app/`) avec `NativeBridge.kt`, `SessionContainer.kt`, `TelemetryPoint.kt`.
-- Script `build_and_run.sh` pour compilation et exécution.
-- Extraction du `.so` depuis l'APK Y-Trac v1.3.8.
+- Complete Kotlin app (`android_app/`) with `NativeBridge.kt`, `SessionContainer.kt`, `TelemetryPoint.kt`.
+- `build_and_run.sh` script for compilation and execution.
+- `.so` extraction from Y-Trac v1.3.8 APK.
 
 ### Documentation
 
-- **Spec v1.2** : format binaire documenté (partiellement en français), vérification sur 1 fichier (16 462 points natifs vs 16 475 parser, +0.08%).
-- **NATIVE_LIBRARY.md** : notes de reverse engineering initiales.
-- **3 docs supplémentaires** : `REVERSE_ENGINEERING_SUMMARY.md`, `libSensorsRecordIF_howitworks.md`, `libSensorsRecordIF_usage.md`.
-- **Scripts d'analyse** : `analyze_lean_formula.py`, `compare_raw_values.py`, `compare_values.py`, `extract_ytrac_values.py`, `test_can_parsing.py`, `visualize_comparison.py`, `visualize_ride.py`.
+- **Spec v1.2**: binary format documented (partially in French), verification on 1 file (16,462 native points vs 16,475 parser, +0.08%).
+- **NATIVE_LIBRARY.md**: initial reverse engineering notes.
+- **3 additional docs**: `REVERSE_ENGINEERING_SUMMARY.md`, `libSensorsRecordIF_howitworks.md`, `libSensorsRecordIF_usage.md`.
+- **Analysis scripts**: `analyze_lean_formula.py`, `compare_raw_values.py`, `compare_values.py`, `extract_ytrac_values.py`, `test_can_parsing.py`, `visualize_comparison.py`, `visualize_ride.py`.

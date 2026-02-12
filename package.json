@@ -1,0 +1,17 @@
+{
+  "name": "@tex0l/ctrk-exporter",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/ctrk-parser",
+    "packages/ctrk-cli",
+    "packages/ctrk-astro",
+    "packages/ctrk-astro/examples/web"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "license": "MIT"
+}

@@ -5,8 +5,8 @@
  * Uses transferable ArrayBuffer for performance.
  */
 
-import { CTRKParser } from '@ctrk/parser';
-import type { TelemetryRecord } from '@ctrk/parser';
+import { CTRKParser } from '@tex0l/ctrk-parser';
+import type { TelemetryRecord } from '@tex0l/ctrk-parser';
 
 /**
  * Message sent from main thread to worker

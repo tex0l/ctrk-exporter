@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useTelemetryData } from '@ctrk-exporter/astro-integration/composables';
-import { formatFileSize } from '@ctrk-exporter/astro-integration/utils';
+import { useTelemetryData } from '@tex0l/ctrk-astro/composables';
+import { formatFileSize } from '@tex0l/ctrk-astro/utils';
 import TrackMap from './TrackMap.vue';
 import TelemetryChart from './TelemetryChart.vue';
 import LapTimingTable from './LapTimingTable.vue';

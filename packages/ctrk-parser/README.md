@@ -1,4 +1,4 @@
-# @ctrk/parser
+# @tex0l/ctrk-parser
 
 TypeScript parser for Yamaha Y-Trac CTRK telemetry files.
 
@@ -13,7 +13,7 @@ TypeScript parser for Yamaha Y-Trac CTRK telemetry files.
 ## Installation
 
 ```bash
-npm install @ctrk/parser
+npm install @tex0l/ctrk-parser
 ```
 
 ## Usage
@@ -28,7 +28,7 @@ import {
   parseFinishLine,
   parseCan0x0209,
   // ... other exports
-} from '@ctrk/parser';
+} from '@tex0l/ctrk-parser';
 ```
 
 ### Parse a CTRK file
@@ -60,7 +60,7 @@ const rpm = reader.readUInt16BE(); // Read big-endian uint16
 ### Calibrate raw values
 
 ```typescript
-import { Calibration } from '@ctrk/parser';
+import { Calibration } from '@tex0l/ctrk-parser';
 
 const rpm = Calibration.rpm(25600); // 10000 RPM
 const speed = Calibration.wheelSpeedKmh(6400); // 360.0 km/h

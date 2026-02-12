@@ -19,7 +19,7 @@ const progress = ref<number>(0);
  * @example
  * ```vue
  * <script setup>
- * import { useParserStatus } from '@ctrk-exporter/astro-integration/composables';
+ * import { useParserStatus } from '@tex0l/ctrk-astro/composables';
  *
  * const { status, error, isLoading, reset } = useParserStatus();
  * </script>

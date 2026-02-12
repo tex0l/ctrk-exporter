@@ -4,7 +4,7 @@
  * Computes lap times, deltas, and session statistics from telemetry records.
  */
 
-import type { TelemetryRecord } from '@ctrk/parser';
+import type { TelemetryRecord } from '@tex0l/ctrk-parser';
 
 /**
  * Lap timing information

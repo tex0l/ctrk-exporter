@@ -18,16 +18,16 @@ The CTRK-Exporter Web Edition has undergone a comprehensive final code review ac
 ## Review Scope
 
 ### Packages Reviewed
-1. **@ctrk/parser** (`/Users/timotheerebours/PersonalProjects/louis-file/parser/`)
+1. **@tex0l/ctrk-parser** (`/Users/timotheerebours/PersonalProjects/louis-file/parser/`)
    - TypeScript parser library
    - Zero external runtime dependencies
    - Comprehensive test suite
 
-2. **@ctrk-exporter/astro-integration** (`/Users/timotheerebours/PersonalProjects/louis-file/astro-integration/`)
+2. **@tex0l/ctrk-astro** (`/Users/timotheerebours/PersonalProjects/louis-file/astro-integration/`)
    - Astro integration layer
    - Vue composables and utilities
 
-3. **ctrk-web** (`/Users/timotheerebours/PersonalProjects/louis-file/web/`)
+3. **@tex0l/ctrk-web** (`/Users/timotheerebours/PersonalProjects/louis-file/web/`)
    - Full-stack web application
    - Vue 3 components
    - Astro static site
@@ -100,9 +100,9 @@ Duration: 8.23 seconds
 
 **Package Licenses:**
 ```
-✓ PASS @ctrk/parser: MIT
-✓ PASS @ctrk-exporter/astro-integration: MIT
-✓ PASS ctrk-web: Private (not published)
+✓ PASS @tex0l/ctrk-parser: MIT
+✓ PASS @tex0l/ctrk-astro: MIT
+✓ PASS @tex0l/ctrk-web: Private (not published)
 ```
 
 **Production Dependency Licenses:**
@@ -536,4 +536,4 @@ While the current version is production-ready, consider these enhancements for f
 
 ---
 
-*This review covers the complete codebase across all three packages: @ctrk/parser, @ctrk-exporter/astro-integration, and ctrk-web. All checks performed successfully with no blocking issues identified.*
+*This review covers the complete codebase across all three packages: @tex0l/ctrk-parser, @tex0l/ctrk-astro, and @tex0l/ctrk-web. All checks performed successfully with no blocking issues identified.*

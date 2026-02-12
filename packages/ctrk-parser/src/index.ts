@@ -36,8 +36,6 @@ export {
   parseGprmcSentence,
 } from './nmea-parser.js';
 
-export { formatCalibratedCsv, formatRawCsv } from './csv-export.js';
-
 export type {
   FinishLine,
   TelemetryRecord,

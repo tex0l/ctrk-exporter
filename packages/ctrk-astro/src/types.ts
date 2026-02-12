@@ -2,7 +2,7 @@
  * Type definitions for Astro integration
  */
 
-import type { TelemetryRecord } from '@ctrk/parser';
+import type { TelemetryRecord } from '@tex0l/ctrk-parser';
 
 /**
  * Parser status states

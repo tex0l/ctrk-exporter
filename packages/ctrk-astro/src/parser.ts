@@ -1,5 +1,5 @@
 /**
- * Parser re-exports from @ctrk/parser
+ * Parser re-exports from @tex0l/ctrk-parser
  *
  * Provides convenient access to the CTRK parser functionality
  * for Astro/Vue.js applications.
@@ -29,7 +29,7 @@ export {
   timestampsEqual,
   validateNmeaChecksum,
   parseGprmcSentence,
-} from '@ctrk/parser';
+} from '@tex0l/ctrk-parser';
 
 export type {
   FinishLine,
@@ -38,4 +38,4 @@ export type {
   GpsState,
   GprmcData,
   TimestampState,
-} from '@ctrk/parser';
+} from '@tex0l/ctrk-parser';

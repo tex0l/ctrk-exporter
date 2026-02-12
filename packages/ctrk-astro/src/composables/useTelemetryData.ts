@@ -6,7 +6,7 @@
  */
 
 import { ref, computed, readonly } from 'vue';
-import type { TelemetryRecord } from '@ctrk/parser';
+import type { TelemetryRecord } from '@tex0l/ctrk-parser';
 import type { ParserResult } from '../types.js';
 
 // Global state (singleton pattern for composables)
@@ -20,7 +20,7 @@ const metadata = ref<Omit<ParserResult, 'records'> | null>(null);
  * @example
  * ```vue
  * <script setup>
- * import { useTelemetryData } from '@ctrk-exporter/astro-integration/composables';
+ * import { useTelemetryData } from '@tex0l/ctrk-astro/composables';
  *
  * const { records, laps, selectedLap, selectLap, clear } = useTelemetryData();
  * </script>

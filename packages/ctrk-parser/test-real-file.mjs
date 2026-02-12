@@ -6,7 +6,7 @@
 import { readFileSync } from 'fs';
 import { CTRKParser } from './dist/index.js';
 
-const filename = process.argv[2] || '../input/20250729-170818.CTRK';
+const filename = process.argv[2] || '../../input/20250729-170818.CTRK';
 
 console.log(`Loading file: ${filename}`);
 const data = readFileSync(filename);

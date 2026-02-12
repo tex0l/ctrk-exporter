@@ -1,5 +1,5 @@
 {
-  "name": "@ctrk/parser",
+  "name": "@tex0l/ctrk-parser",
   "version": "0.1.0",
   "description": "TypeScript parser for Yamaha Y-Trac CTRK telemetry files",
   "type": "module",
@@ -10,9 +10,6 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
-  },
-  "bin": {
-    "ctrk-parser": "./dist/cli.js"
   },
   "files": [
     "dist"

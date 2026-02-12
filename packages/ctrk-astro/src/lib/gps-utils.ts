@@ -5,7 +5,7 @@
  * from telemetry records.
  */
 
-import type { TelemetryRecord } from '@ctrk/parser';
+import type { TelemetryRecord } from '@tex0l/ctrk-parser';
 
 /**
  * GPS sentinel value indicating no fix

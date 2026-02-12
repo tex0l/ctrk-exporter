@@ -1,5 +1,5 @@
 /**
- * @ctrk-exporter/astro-integration
+ * @tex0l/ctrk-astro
  *
  * Astro integration for CTRK telemetry parser with Vue.js components
  */

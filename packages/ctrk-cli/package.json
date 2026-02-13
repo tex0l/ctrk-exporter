@@ -1,6 +1,6 @@
 {
   "name": "@tex0l/ctrk-cli",
-  "version": "0.1.0-0",
+  "version": "0.1.0-1",
   "description": "CLI for parsing Yamaha Y-Trac CTRK telemetry files",
   "type": "module",
   "bin": {

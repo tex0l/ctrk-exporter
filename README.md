@@ -77,6 +77,15 @@ npm run build
 npm test
 ```
 
+## Releasing
+
+```bash
+npm version prerelease --workspaces --include-workspace-root
+git push --follow-tags
+```
+
+This bumps all package versions, commits, tags, and pushes. The GitHub Actions publish workflow triggers on `v*` tags and publishes all packages to npm via trusted publishing (OIDC).
+
 ## Backstory
 
 I'm not a motorcyclist. A friend told me he had tried to extract data from his CTRK files without success. I said it would be easy with Claude. It became a matter of principle.

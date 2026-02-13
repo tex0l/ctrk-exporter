@@ -14,6 +14,7 @@
     "url": "git+https://github.com/tex0l/ctrk-exporter.git"
   },
   "scripts": {
+    "version": "git add packages/*/package.json packages/ctrk-astro/examples/web/package.json package-lock.json",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"

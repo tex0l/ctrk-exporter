@@ -1,6 +1,6 @@
 {
   "name": "@tex0l/ctrk-astro",
-  "version": "0.1.0",
+  "version": "0.1.0-0",
   "description": "Astro integration for CTRK telemetry parser with Vue.js components",
   "type": "module",
   "main": "./dist/index.js",
@@ -76,7 +76,7 @@
     }
   },
   "dependencies": {
-    "@tex0l/ctrk-parser": "^0.1.0"
+    "@tex0l/ctrk-parser": "^0.1.0-0"
   },
   "devDependencies": {
     "@types/leaflet": "^1.9.8",

@@ -2,11 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-Versions follow [Semantic Versioning](https://semver.org/). No npm release has been made yet — all changes below are unreleased.
+Versions follow [Semantic Versioning](https://semver.org/).
 
 For the Python exploration phase history, see [exploration/CHANGELOG.md](exploration/CHANGELOG.md).
 
-## Unreleased
+## [0.1.0-0] - 2026-02-12
 
 ### Structure
 
@@ -40,6 +40,12 @@ For the Python exploration phase history, see [exploration/CHANGELOG.md](explora
 - Global CSS with dark theme and 3-tier responsive breakpoints
 - Package exports: `.`, `./parser`, `./composables`, `./utils`, `./lib/*`, `./components/*`, `./workers/*`, `./styles/*`
 - `chart.js` and `leaflet` as optional peer dependencies
+
+### CI/CD
+
+- GitHub Actions CI workflow (Node 20 + 22 matrix) on push/PR to main
+- GitHub Actions publish workflow on version tags with npm provenance
+- Committed Sample.CTRK fixture from Y-Trac APK for CI integration testing
 
 ### Documentation
 

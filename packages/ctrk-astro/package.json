@@ -38,7 +38,8 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build && npm run typecheck"
   },
   "keywords": [
     "astro",
@@ -49,7 +50,15 @@
     "yamaha",
     "y-trac"
   ],
-  "author": "",
+  "author": "tex0l <github@rebours.me>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tex0l/ctrk-exporter.git",
+    "directory": "packages/ctrk-astro"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "license": "MIT",
   "peerDependencies": {
     "@astrojs/vue": "^5.0.0",

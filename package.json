@@ -8,6 +8,11 @@
     "packages/ctrk-astro",
     "packages/ctrk-astro/examples/web"
   ],
+  "author": "tex0l <github@rebours.me>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tex0l/ctrk-exporter.git"
+  },
   "scripts": {
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces --if-present",

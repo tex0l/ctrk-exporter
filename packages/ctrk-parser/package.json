@@ -22,7 +22,8 @@
     "lint": "eslint 'src/**/*.ts' --ignore-pattern 'src/**/*.test.ts'",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm run typecheck && npm run test"
   },
   "keywords": [
     "yamaha",
@@ -33,7 +34,15 @@
     "motorcycle",
     "datalogger"
   ],
-  "author": "",
+  "author": "tex0l <github@rebours.me>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tex0l/ctrk-exporter.git",
+    "directory": "packages/ctrk-parser"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.11.16",

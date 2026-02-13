@@ -11,7 +11,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm run typecheck"
   },
   "keywords": [
     "yamaha",
@@ -20,7 +21,15 @@
     "telemetry",
     "cli"
   ],
-  "author": "",
+  "author": "tex0l <github@rebours.me>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tex0l/ctrk-exporter.git",
+    "directory": "packages/ctrk-cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "license": "MIT",
   "dependencies": {
     "@tex0l/ctrk-parser": "^0.1.0"

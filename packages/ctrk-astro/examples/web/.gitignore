@@ -16,6 +16,15 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Test results
+test-results/
+
+# Generated reports
+test/BUG_REPORT.md
+test/FINAL_CODE_REVIEW.md
+test/QA_REPORT.md
+test/TEST_SUMMARY.md
+
 # macOS
 .DS_Store
 

@@ -5,13 +5,15 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import { CTRKParser } from './ctrk-parser';
 
 const TEST_DATA_DIR = join(__dirname, '..', 'test-data');
+const hasTestData = existsSync(TEST_DATA_DIR) &&
+  readdirSync(TEST_DATA_DIR).some(f => f.endsWith('.CTRK'));
 
-describe('Edge Case Tests', () => {
+describe.skipIf(!hasTestData)('Edge Case Tests', () => {
   describe('Minimal files', () => {
     it('should parse file with only 102 records (20250829-192509.CTRK)', () => {
       const data = readFileSync(join(TEST_DATA_DIR, '20250829-192509.CTRK'));

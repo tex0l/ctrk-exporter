@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { readFileSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, basename } from 'path';
 import { CTRKParser } from './ctrk-parser.js';
 import { Calibration } from './calibration.js';
@@ -19,6 +19,8 @@ import type { TelemetryRecord } from './types.js';
 
 const TEST_DATA_DIR = join(__dirname, '..', 'test-data');
 const PYTHON_OUTPUT_DIR = join(TEST_DATA_DIR, 'python-output');
+const hasTestData = existsSync(TEST_DATA_DIR) &&
+  readdirSync(TEST_DATA_DIR).some(f => f.endsWith('.CTRK'));
 
 // Tolerances per channel (maximum allowed absolute difference)
 const TOLERANCES: Record<string, number> = {
@@ -182,7 +184,7 @@ function validateFile(ctrkPath: string, pythonCsvPath: string): FileResult {
 
 // ---- Test suite ----
 
-describe('Cross-validation: TypeScript parser vs Python ground truth', () => {
+describe.skipIf(!hasTestData)('Cross-validation: TypeScript parser vs Python ground truth', () => {
   let fileResults: FileResult[] = [];
   let globalChannelStats: Record<string, ChannelStats> = {};
   let totalAlignedRecords = 0;

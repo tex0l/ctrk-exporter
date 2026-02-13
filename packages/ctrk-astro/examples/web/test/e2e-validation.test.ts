@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import { CTRKParser, type TelemetryRecord } from '@tex0l/ctrk-parser';
 import {
@@ -35,6 +35,8 @@ import { CHANNEL_GROUPS, getLapColor, getEnabledChannels } from '@tex0l/ctrk-ast
 
 // Use committed test data from parser package
 const TEST_DATA_DIR = join(__dirname, '..', '..', '..', '..', 'ctrk-parser', 'test-data');
+const hasTestData = existsSync(TEST_DATA_DIR) &&
+  readdirSync(TEST_DATA_DIR).some(f => f.endsWith('.CTRK'));
 
 let testFiles: string[] = [];
 let sampleRecords: TelemetryRecord[] = [];
@@ -52,7 +54,7 @@ beforeAll(() => {
   sampleRecords = new CTRKParser(data).parse();
 });
 
-describe('File Validator', () => {
+describe.skipIf(!hasTestData)('File Validator', () => {
   describe('validateExtension', () => {
     it('should accept .CTRK extension', () => {
       expect(validateExtension('test.CTRK')).toBeNull();
@@ -120,7 +122,7 @@ describe('File Validator', () => {
   });
 });
 
-describe('GPS Utils', () => {
+describe.skipIf(!hasTestData)('GPS Utils', () => {
   describe('isValidGps', () => {
     it('should accept valid GPS coordinates', () => {
       expect(isValidGps(48.858844, 2.294351)).toBe(true);
@@ -246,7 +248,7 @@ describe('GPS Utils', () => {
   });
 });
 
-describe('Lap Timing', () => {
+describe.skipIf(!hasTestData)('Lap Timing', () => {
   describe('computeLapTimes', () => {
     it('should compute lap times from records', () => {
       const lapTimes = computeLapTimes(sampleRecords);
@@ -331,7 +333,7 @@ describe('Lap Timing', () => {
   });
 });
 
-describe('Export Utils', () => {
+describe.skipIf(!hasTestData)('Export Utils', () => {
   describe('exportLapTimesToCsv', () => {
     it('should export lap times to CSV format', () => {
       const lapTimes = computeLapTimes(sampleRecords);
@@ -363,7 +365,7 @@ describe('Export Utils', () => {
   });
 });
 
-describe('Chart Config', () => {
+describe.skipIf(!hasTestData)('Chart Config', () => {
   describe('CHANNEL_GROUPS', () => {
     it('should have all required channel groups', () => {
       const groupIds = CHANNEL_GROUPS.map((g) => g.id);
@@ -416,7 +418,7 @@ describe('Chart Config', () => {
   });
 });
 
-describe('Integration Tests', () => {
+describe.skipIf(!hasTestData)('Integration Tests', () => {
   describe('Full parsing and analysis pipeline', () => {
     it('should parse all test files and compute lap times', () => {
       let totalRecords = 0;

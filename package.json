@@ -11,7 +11,7 @@
   "author": "tex0l <github@rebours.me>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tex0l/ctrk-exporter.git"
+    "url": "git+https://github.com/tex0l/ctrk-exporter.git"
   },
   "scripts": {
     "build": "npm run build --workspaces",

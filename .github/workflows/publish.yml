@@ -23,6 +23,15 @@ jobs:
       - run: npm run build
       - run: npm run typecheck
       - run: npm test
-      - run: npm publish -w packages/ctrk-parser
-      - run: npm publish -w packages/ctrk-cli
-      - run: npm publish -w packages/ctrk-astro
+      - name: Determine npm tag
+        id: npm-tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$VERSION" == *-* ]]; then
+            echo "tag=--tag next" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
+      - run: npm publish ${{ steps.npm-tag.outputs.tag }} -w packages/ctrk-parser
+      - run: npm publish ${{ steps.npm-tag.outputs.tag }} -w packages/ctrk-cli
+      - run: npm publish ${{ steps.npm-tag.outputs.tag }} -w packages/ctrk-astro

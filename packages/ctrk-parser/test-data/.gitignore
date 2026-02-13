@@ -8,3 +8,7 @@ python-output/*.csv
 !.gitignore
 !README.md
 !python-output/.gitkeep
+
+# Committed test fixtures (e.g. Sample.CTRK from Y-Trac APK)
+!fixtures/
+!fixtures/**

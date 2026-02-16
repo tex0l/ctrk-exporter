@@ -30,7 +30,7 @@ import {
   formatLapTime,
   formatDelta,
 } from '@tex0l/ctrk-astro/lib/lap-timing';
-import { exportLapTimesToCsv } from '@tex0l/ctrk-astro/lib/export-utils';
+import { formatCalibratedCsv } from '@tex0l/ctrk-astro/lib/export-utils';
 import { CHANNEL_GROUPS, getLapColor, getEnabledChannels } from '@tex0l/ctrk-astro/lib/chart-config';
 
 // Use committed test data from parser package
@@ -334,32 +334,33 @@ describe.skipIf(!hasTestData)('Lap Timing', () => {
 });
 
 describe.skipIf(!hasTestData)('Export Utils', () => {
-  describe('exportLapTimesToCsv', () => {
-    it('should export lap times to CSV format', () => {
-      const lapTimes = computeLapTimes(sampleRecords);
-      const csv = exportLapTimesToCsv(lapTimes);
+  describe('formatCalibratedCsv', () => {
+    it('should export calibrated telemetry to CSV format', () => {
+      const csv = formatCalibratedCsv(sampleRecords);
 
-      expect(csv).toContain('Lap,Time (s),Delta (s),Is Best');
+      expect(csv).toContain('lap,time_ms,latitude,longitude,gps_speed_kmh');
 
-      // Filter empty trailing lines
-      const lines = csv.split('\n').filter((l) => l.trim());
-      expect(lines.length).toBe(lapTimes.length + 1); // +1 for header
+      // CRLF line endings, filter empty trailing line
+      const lines = csv.split('\r\n').filter((l: string) => l.trim());
+      expect(lines.length).toBe(sampleRecords.length + 1); // +1 for header
 
       for (let i = 1; i < lines.length; i++) {
         const columns = lines[i].split(',');
-        expect(columns.length).toBe(4);
+        expect(columns.length).toBe(27);
       }
     });
 
-    it('should format times as seconds with 3 decimal places', () => {
-      const lapTimes = computeLapTimes(sampleRecords);
-      const csv = exportLapTimesToCsv(lapTimes);
-      const lines = csv.split('\n').filter((l) => l.trim());
+    it('should produce valid numeric values for all fields', () => {
+      const csv = formatCalibratedCsv(sampleRecords);
+      const lines = csv.split('\r\n').filter((l: string) => l.trim());
 
-      for (let i = 1; i < lines.length; i++) {
+      for (let i = 1; i < Math.min(lines.length, 10); i++) {
         const columns = lines[i].split(',');
-        const timeSec = parseFloat(columns[1]);
-        expect(timeSec).toBeGreaterThan(0);
+        const timeMs = parseFloat(columns[1]);
+        expect(timeMs).toBeGreaterThanOrEqual(0);
+        // latitude/longitude should be valid numbers
+        expect(parseFloat(columns[2])).not.toBeNaN();
+        expect(parseFloat(columns[3])).not.toBeNaN();
       }
     });
   });

@@ -1,6 +1,6 @@
 {
   "name": "@tex0l/ctrk-astro",
-  "version": "0.1.0-3",
+  "version": "0.1.0-4",
   "description": "Astro integration for CTRK telemetry parser with Vue.js components",
   "type": "module",
   "main": "./dist/index.js",
@@ -41,6 +41,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
+    "test": "vitest run",
     "prepublishOnly": "npm run build && npm run typecheck"
   },
   "keywords": [
@@ -65,9 +66,9 @@
   "peerDependencies": {
     "@astrojs/vue": "^5.0.0",
     "astro": "^5.0.0",
-    "vue": "^3.5.0",
     "chart.js": "^4.4.0",
-    "leaflet": "^1.9.0"
+    "leaflet": "^1.9.0",
+    "vue": "^3.5.0"
   },
   "peerDependenciesMeta": {
     "chart.js": {
@@ -83,6 +84,7 @@
   "devDependencies": {
     "@types/leaflet": "^1.9.8",
     "@types/node": "^20.11.16",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^1.6.1"
   }
 }

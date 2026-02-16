@@ -6,6 +6,33 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 For the Python exploration phase history, see [exploration/CHANGELOG.md](exploration/CHANGELOG.md).
 
+## [0.1.0] - 2026-02-16
+
+### Changed
+
+- **@tex0l/ctrk-astro**: Migrate all 8 Vue components from scoped BEM CSS to Tailwind utility classes using the site's `(--color-*)` custom properties
+- **@tex0l/ctrk-astro**: Replace lap timing CSV export with full calibrated telemetry CSV matching CLI output (same 27-column header, Calibration functions, Python-compatible banker's rounding, CRLF line endings)
+- **@tex0l/ctrk-astro**: Add `@source inline()` CSS file and `index.css` export for Tailwind consumers
+
+### Fixed
+
+- **@tex0l/ctrk-astro**: Fix e2e test to use `formatCalibratedCsv` after export-utils rewrite
+
+### Added
+
+- **@tex0l/ctrk-astro**: Unit tests for calibrated CSV export (6 tests)
+- **@tex0l/ctrk-astro**: Vitest config to exclude Playwright e2e tests from unit test runs
+
+### Removed
+
+- **@tex0l/ctrk-astro**: Global CSS file (`src/styles/global.css`) — replaced by Tailwind utilities
+
+### CI/CD
+
+- Switch publish workflow to npm trusted publishing (OIDC provenance)
+- Add `--tag next` for prerelease npm publishes
+- Add version lifecycle script and document release process
+
 ## [0.1.0-0] - 2026-02-12
 
 ### Structure

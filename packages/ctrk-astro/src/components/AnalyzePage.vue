@@ -49,37 +49,42 @@ function formatDateTime(epochMs: number): string {
 </script>
 
 <template>
-  <div v-if="hasData" class="analyze-page">
+  <div v-if="hasData" class="max-w-[1400px] mx-auto max-sm:max-w-full">
     <!-- File Info -->
-    <div class="card">
-      <h2>File Information</h2>
-      <div class="info-grid">
-        <div class="info-item">
-          <span class="info-label">File Name</span>
-          <span class="info-value">{{ metadata?.fileName }}</span>
+    <div class="bg-(--color-bg-secondary) border border-(--color-border) rounded-md p-6 max-sm:p-4 mb-6">
+      <h2 class="text-xl max-sm:text-lg font-semibold mb-4">File Information</h2>
+      <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] max-sm:grid-cols-1 sm:grid-cols-2 gap-6 max-sm:gap-4 mt-4">
+        <div class="flex flex-col gap-1">
+          <span class="text-sm max-sm:text-xs text-(--color-text-secondary) font-medium">File Name</span>
+          <span class="text-lg max-sm:text-base text-(--color-text-primary) font-semibold">{{ metadata?.fileName }}</span>
         </div>
-        <div class="info-item">
-          <span class="info-label">File Size</span>
-          <span class="info-value">{{ metadata ? formatFileSize(metadata.fileSize) : '-' }}</span>
+        <div class="flex flex-col gap-1">
+          <span class="text-sm max-sm:text-xs text-(--color-text-secondary) font-medium">File Size</span>
+          <span class="text-lg max-sm:text-base text-(--color-text-primary) font-semibold">{{ metadata ? formatFileSize(metadata.fileSize) : '-' }}</span>
         </div>
-        <div class="info-item">
-          <span class="info-label">Parse Time</span>
-          <span class="info-value">{{ metadata ? (metadata.parseTime).toFixed(2) + 'ms' : '-' }}</span>
+        <div class="flex flex-col gap-1">
+          <span class="text-sm max-sm:text-xs text-(--color-text-secondary) font-medium">Parse Time</span>
+          <span class="text-lg max-sm:text-base text-(--color-text-primary) font-semibold">{{ metadata ? (metadata.parseTime).toFixed(2) + 'ms' : '-' }}</span>
         </div>
-        <div class="info-item">
-          <span class="info-label">Total Records</span>
-          <span class="info-value">{{ records.length.toLocaleString() }}</span>
+        <div class="flex flex-col gap-1">
+          <span class="text-sm max-sm:text-xs text-(--color-text-secondary) font-medium">Total Records</span>
+          <span class="text-lg max-sm:text-base text-(--color-text-primary) font-semibold">{{ records.length.toLocaleString() }}</span>
         </div>
       </div>
     </div>
 
     <!-- Lap Selector -->
-    <div class="card">
-      <div class="lap-selector-header">
-        <h2>Lap Selection</h2>
-        <div class="lap-selector">
-          <label for="lap-select">Select Lap:</label>
-          <select id="lap-select" :value="selectedLap ?? 'all'" @change="handleLapChange">
+    <div class="bg-(--color-bg-secondary) border border-(--color-border) rounded-md p-6 max-sm:p-4 mb-6">
+      <div class="flex justify-between items-center flex-wrap gap-4 mb-6 max-sm:flex-col max-sm:items-start max-sm:gap-3">
+        <h2 class="m-0 text-xl max-sm:text-lg font-semibold">Lap Selection</h2>
+        <div class="flex items-center gap-3 max-sm:w-full">
+          <label for="lap-select" class="font-medium text-[0.95rem] max-sm:text-sm">Select Lap:</label>
+          <select
+            id="lap-select"
+            :value="selectedLap ?? 'all'"
+            @change="handleLapChange"
+            class="max-sm:flex-1 max-sm:min-h-[44px]"
+          >
             <option value="all">All Laps ({{ laps.length }} total)</option>
             <option v-for="lap in laps" :key="lap" :value="lap">
               Lap {{ lap }}
@@ -88,242 +93,40 @@ function formatDateTime(epochMs: number): string {
         </div>
       </div>
 
-      <div v-if="statistics" class="statistics-grid">
-        <div class="stat-card">
-          <span class="stat-label">Records</span>
-          <span class="stat-value">{{ statistics.recordCount.toLocaleString() }}</span>
+      <div v-if="statistics" class="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] max-sm:grid-cols-2 gap-4 max-sm:gap-3">
+        <div class="flex flex-col gap-1 p-4 max-sm:p-3 bg-(--color-bg-tertiary) rounded-sm">
+          <span class="text-sm max-sm:text-xs text-(--color-text-secondary)">Records</span>
+          <span class="text-2xl max-sm:text-xl font-semibold text-(--color-accent)">{{ statistics.recordCount.toLocaleString() }}</span>
         </div>
-        <div class="stat-card">
-          <span class="stat-label">Duration</span>
-          <span class="stat-value">{{ formatDuration(statistics.duration) }}</span>
+        <div class="flex flex-col gap-1 p-4 max-sm:p-3 bg-(--color-bg-tertiary) rounded-sm">
+          <span class="text-sm max-sm:text-xs text-(--color-text-secondary)">Duration</span>
+          <span class="text-2xl max-sm:text-xl font-semibold text-(--color-accent)">{{ formatDuration(statistics.duration) }}</span>
         </div>
-        <div class="stat-card">
-          <span class="stat-label">Start Time</span>
-          <span class="stat-value stat-value-sm">{{ formatDateTime(statistics.startTime) }}</span>
+        <div class="flex flex-col gap-1 p-4 max-sm:p-3 bg-(--color-bg-tertiary) rounded-sm">
+          <span class="text-sm max-sm:text-xs text-(--color-text-secondary)">Start Time</span>
+          <span class="text-base font-semibold text-(--color-accent)">{{ formatDateTime(statistics.startTime) }}</span>
         </div>
-        <div class="stat-card">
-          <span class="stat-label">End Time</span>
-          <span class="stat-value stat-value-sm">{{ formatDateTime(statistics.endTime) }}</span>
+        <div class="flex flex-col gap-1 p-4 max-sm:p-3 bg-(--color-bg-tertiary) rounded-sm">
+          <span class="text-sm max-sm:text-xs text-(--color-text-secondary)">End Time</span>
+          <span class="text-base font-semibold text-(--color-accent)">{{ formatDateTime(statistics.endTime) }}</span>
         </div>
       </div>
     </div>
 
     <!-- GPS Track Map and Lap Timing (side by side) -->
-    <div class="visualization-grid">
-      <div class="card">
+    <div class="grid grid-cols-2 lg:grid-cols-2 max-lg:grid-cols-1 gap-6">
+      <div class="bg-(--color-bg-secondary) border border-(--color-border) rounded-md p-6 max-sm:p-4 mb-6 min-h-[500px] max-lg:min-h-0 flex flex-col">
         <TrackMap />
       </div>
 
-      <div class="card">
+      <div class="bg-(--color-bg-secondary) border border-(--color-border) rounded-md p-6 max-sm:p-4 mb-6 min-h-[500px] max-lg:min-h-0 flex flex-col">
         <LapTimingTable />
       </div>
     </div>
 
     <!-- Telemetry Charts (full width) -->
-    <div class="card">
+    <div class="bg-(--color-bg-secondary) border border-(--color-border) rounded-md p-6 max-sm:p-4 mb-6">
       <TelemetryChart />
     </div>
   </div>
 </template>
-
-<style scoped>
-.analyze-page {
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1rem;
-}
-
-.info-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.info-label {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-  font-weight: 500;
-}
-
-.info-value {
-  font-size: 1.125rem;
-  color: var(--color-text);
-  font-weight: 600;
-}
-
-.lap-selector-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.lap-selector-header h2 {
-  margin: 0;
-}
-
-.lap-selector {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.lap-selector label {
-  font-weight: 500;
-  font-size: 0.95rem;
-}
-
-.statistics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1rem;
-}
-
-.stat-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 1rem;
-  background: var(--color-bg-tertiary);
-  border-radius: var(--radius-sm);
-}
-
-.stat-label {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-}
-
-.stat-value {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--color-accent);
-}
-
-.stat-value-sm {
-  font-size: 1rem;
-}
-
-.visualization-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-}
-
-.visualization-grid .card {
-  min-height: 500px;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Mobile: < 640px */
-@media (max-width: 639px) {
-  .analyze-page {
-    max-width: 100%;
-  }
-
-  .card {
-    padding: 1rem;
-  }
-
-  .info-grid {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-
-  .info-label {
-    font-size: 0.8rem;
-  }
-
-  .info-value {
-    font-size: 1rem;
-  }
-
-  .lap-selector-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-
-  .lap-selector-header h2 {
-    font-size: 1.125rem;
-  }
-
-  .lap-selector {
-    width: 100%;
-  }
-
-  .lap-selector label {
-    font-size: 0.875rem;
-  }
-
-  .lap-selector select {
-    flex: 1;
-    min-height: 44px;
-  }
-
-  .statistics-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-  }
-
-  .stat-card {
-    padding: 0.75rem;
-  }
-
-  .stat-label {
-    font-size: 0.75rem;
-  }
-
-  .stat-value {
-    font-size: 1.25rem;
-  }
-
-  .visualization-grid {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-
-  .visualization-grid .card {
-    min-height: auto;
-  }
-}
-
-/* Tablet: 640px - 1023px */
-@media (min-width: 640px) and (max-width: 1023px) {
-  .analyze-page {
-    max-width: 100%;
-  }
-
-  .info-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .statistics-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .visualization-grid {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-  }
-
-  .visualization-grid .card {
-    min-height: auto;
-  }
-}
-
-/* Desktop: >= 1024px */
-@media (min-width: 1024px) {
-  .visualization-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-</style>

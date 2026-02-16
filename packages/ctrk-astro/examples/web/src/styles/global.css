@@ -1,0 +1,131 @@
+@import "tailwindcss";
+@import "@tex0l/ctrk-astro";
+
+@theme {
+  --color-bg: #0f0f0f;
+  --color-bg-secondary: #1a1a1a;
+  --color-bg-tertiary: #252525;
+  --color-text: #e0e0e0;
+  --color-text-primary: #e0e0e0;
+  --color-text-secondary: #999;
+  --color-border: #333;
+  --color-accent: #0066cc;
+  --color-accent-hover: #0052a3;
+  --color-success: #00aa00;
+  --color-error: #cc0000;
+  --color-warning: #ff9900;
+  --color-info: #0099cc;
+  --color-highlight-success: rgba(0, 170, 0, 0.15);
+  --color-highlight-success-hover: rgba(0, 170, 0, 0.25);
+  --color-highlight-info: rgba(0, 102, 204, 0.15);
+  --color-highlight-info-subtle: rgba(0, 102, 204, 0.08);
+  --color-highlight-error: rgba(204, 0, 0, 0.1);
+}
+
+/* Base typography — in @layer base so Tailwind utilities can override */
+@layer base {
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    line-height: 1.2;
+    font-weight: 600;
+  }
+
+  h1 {
+    font-size: 2rem;
+    margin-bottom: 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    margin: 1.5rem 0 1rem;
+  }
+
+  h3 {
+    font-size: 1.25rem;
+    margin: 1rem 0 0.5rem;
+  }
+
+  p {
+    margin-bottom: 1rem;
+  }
+
+  button {
+    background: var(--color-accent);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: background 150ms ease;
+  }
+
+  button:hover:not(:disabled) {
+    background: var(--color-accent-hover);
+  }
+
+  button:disabled {
+    background: #444;
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  select, input[type="text"], input[type="number"] {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-size: 1rem;
+  }
+
+  select:focus, input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+  }
+
+  a {
+    color: var(--color-accent);
+    text-decoration: none;
+    transition: color 150ms ease;
+  }
+
+  a:hover {
+    color: var(--color-accent-hover);
+  }
+
+  /* Mobile typography scaling */
+  @media (max-width: 639px) {
+    h1 { font-size: 1.75rem; }
+    h2 { font-size: 1.25rem; }
+    h3 { font-size: 1.125rem; }
+
+    button, .touch-target {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+}
+
+/* These must stay unlayered — always apply regardless of utilities */
+.skip-to-content {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-accent);
+  color: white;
+  padding: 8px 16px;
+  text-decoration: none;
+  z-index: 10000;
+}
+.skip-to-content:focus {
+  top: 0;
+}

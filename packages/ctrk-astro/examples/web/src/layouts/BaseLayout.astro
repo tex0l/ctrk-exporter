@@ -1,5 +1,5 @@
 ---
-import '@tex0l/ctrk-astro/styles/global.css';
+import '../styles/global.css';
 
 interface Props {
   title: string;
@@ -26,20 +26,5 @@ const { title } = Astro.props;
       </main>
       <slot name="toast" />
     </div>
-    <style>
-      .skip-to-content {
-        position: absolute;
-        top: -40px;
-        left: 0;
-        background: var(--color-accent);
-        color: white;
-        padding: 8px 16px;
-        text-decoration: none;
-        z-index: 10000;
-      }
-      .skip-to-content:focus {
-        top: 0;
-      }
-    </style>
   </body>
 </html>

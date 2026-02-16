@@ -183,14 +183,17 @@ function handleUploadAnother() {
 
 <template>
   <!-- Compact "Upload another?" button when data is already loaded -->
-  <div v-if="hasData" class="upload-another-bar">
-    <button @click="handleUploadAnother" class="upload-another-button">
+  <div v-if="hasData" class="flex justify-end relative mb-4">
+    <button
+      @click="handleUploadAnother"
+      class="flex items-center gap-2 px-4 py-2 bg-(--color-bg-tertiary) border border-(--color-border) rounded-sm text-(--color-text-primary) text-sm font-medium cursor-pointer transition-all duration-150 hover:bg-(--color-accent) hover:text-white hover:border-(--color-accent) focus-visible:outline-2 focus-visible:outline-(--color-accent) focus-visible:outline-offset-2"
+    >
       <svg
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
-        class="upload-another-icon"
+        class="w-4 h-4"
         aria-hidden="true"
       >
         <path
@@ -207,24 +210,24 @@ function handleUploadAnother() {
       type="file"
       accept=".CTRK,.ctrk"
       @change="handleFileSelect"
-      class="file-input"
+      class="absolute inset-0 w-full h-full opacity-0 cursor-pointer pointer-events-none"
       aria-label="Upload CTRK telemetry file"
     />
   </div>
 
   <!-- Full upload form when no data is loaded -->
-  <div v-else class="file-upload card">
-    <h2>Upload CTRK File</h2>
-    <p class="upload-hint">
+  <div v-else class="max-w-[800px] max-sm:max-w-full sm:max-w-[90%] lg:max-w-[800px] mx-auto bg-(--color-bg-secondary) border border-(--color-border) rounded-md p-6 mb-6">
+    <h2 class="text-xl max-sm:text-lg font-semibold mb-4">Upload CTRK File</h2>
+    <p class="text-(--color-text-secondary) mb-6 text-[0.95rem]">
       Upload a .CTRK telemetry file from your Yamaha Y-Trac device to begin analysis.
     </p>
 
     <div
-      class="drop-zone"
+      class="border-2 border-dashed border-(--color-border) rounded-md py-12 px-8 max-sm:py-8 max-sm:px-4 text-center transition-all duration-250 relative cursor-pointer bg-(--color-bg-tertiary)"
       :class="{
-        'drag-over': dragOver,
-        'is-uploading': isUploading,
-        'has-error': status === 'error',
+        'border-(--color-accent) bg-(--color-highlight-info) scale-[1.02]': dragOver,
+        'cursor-not-allowed opacity-80': isUploading,
+        'border-(--color-error) bg-(--color-highlight-error)': status === 'error',
       }"
       role="region"
       aria-label="File upload drop zone"
@@ -240,29 +243,29 @@ function handleUploadAnother() {
         type="file"
         accept=".CTRK,.ctrk"
         @change="handleFileSelect"
-        class="file-input"
+        class="absolute inset-0 w-full h-full opacity-0 cursor-pointer pointer-events-none"
         :disabled="isUploading"
         aria-label="Upload CTRK telemetry file"
       />
 
-      <div class="drop-zone-content">
-        <div v-if="isUploading" class="upload-status" role="status" aria-live="polite">
-          <div class="spinner large" aria-hidden="true"></div>
-          <p class="status-text">Parsing file...</p>
-          <p v-if="currentFile" class="file-info">
+      <div class="pointer-events-none">
+        <div v-if="isUploading" class="flex flex-col items-center gap-4" role="status" aria-live="polite">
+          <div class="w-12 h-12 border-4 border-(--color-border) border-t-(--color-accent) rounded-full animate-spin" aria-hidden="true"></div>
+          <p class="text-lg font-medium m-0">Parsing file...</p>
+          <p v-if="currentFile" class="text-sm text-(--color-text-secondary) m-0">
             {{ currentFile.name }} ({{ formatFileSize(currentFile.size) }})
           </p>
         </div>
 
-        <div v-else-if="status === 'error'" class="upload-status error" role="alert" aria-live="assertive">
-          <span class="status-icon" aria-hidden="true">✗</span>
-          <p class="status-text">Upload failed</p>
-          <button @click.stop="clearFile" class="retry-button">Try Again</button>
+        <div v-else-if="status === 'error'" class="flex flex-col items-center gap-4" role="alert" aria-live="assertive">
+          <span class="text-5xl font-bold text-(--color-error)" aria-hidden="true">✗</span>
+          <p class="text-lg font-medium m-0">Upload failed</p>
+          <button @click.stop="clearFile" class="pointer-events-auto mt-2">Try Again</button>
         </div>
 
-        <div v-else class="upload-prompt">
+        <div v-else class="flex flex-col items-center gap-4">
           <svg
-            class="upload-icon"
+            class="w-16 h-16 max-sm:w-12 max-sm:h-12 text-(--color-accent) transition-transform duration-150"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -276,299 +279,23 @@ function handleUploadAnother() {
               d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
             />
           </svg>
-          <p class="prompt-text">
-            <strong>Drop your .CTRK file here</strong><br />
+          <p class="text-lg max-sm:text-[0.95rem] m-0 leading-relaxed">
+            <strong class="text-(--color-text-primary)">Drop your .CTRK file here</strong><br class="max-sm:hidden" />
             or click to browse
           </p>
-          <p class="prompt-detail">Maximum file size: 50 MB</p>
+          <p class="text-sm text-(--color-text-secondary) m-0">Maximum file size: 50 MB</p>
         </div>
       </div>
     </div>
 
-    <div class="file-requirements">
-      <h3>Requirements</h3>
-      <ul>
-        <li>File extension must be .CTRK</li>
-        <li>Minimum file size: 100 bytes</li>
-        <li>Maximum file size: 50 MB</li>
-        <li>File must contain valid CTRK header ("HEAD")</li>
+    <div class="mt-8 pt-8 border-t border-(--color-border)">
+      <h3 class="text-base max-sm:text-sm mb-3 text-(--color-text-secondary)">Requirements</h3>
+      <ul class="list-none p-0 flex flex-col gap-2 max-sm:gap-1.5">
+        <li class="text-sm max-sm:text-xs text-(--color-text-secondary) pl-6 relative before:content-['•'] before:absolute before:left-2 before:text-(--color-accent)">File extension must be .CTRK</li>
+        <li class="text-sm max-sm:text-xs text-(--color-text-secondary) pl-6 relative before:content-['•'] before:absolute before:left-2 before:text-(--color-accent)">Minimum file size: 100 bytes</li>
+        <li class="text-sm max-sm:text-xs text-(--color-text-secondary) pl-6 relative before:content-['•'] before:absolute before:left-2 before:text-(--color-accent)">Maximum file size: 50 MB</li>
+        <li class="text-sm max-sm:text-xs text-(--color-text-secondary) pl-6 relative before:content-['•'] before:absolute before:left-2 before:text-(--color-accent)">File must contain valid CTRK header ("HEAD")</li>
       </ul>
     </div>
   </div>
 </template>
-
-<style scoped>
-.upload-another-bar {
-  display: flex;
-  justify-content: flex-end;
-  position: relative;
-  margin-bottom: 1rem;
-}
-
-.upload-another-button {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.upload-another-button:hover {
-  background: var(--color-accent);
-  color: white;
-  border-color: var(--color-accent);
-}
-
-.upload-another-button:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-.upload-another-icon {
-  width: 1rem;
-  height: 1rem;
-}
-
-.file-upload {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.upload-hint {
-  color: var(--color-text-secondary);
-  margin-bottom: 1.5rem;
-  font-size: 0.95rem;
-}
-
-.drop-zone {
-  border: 2px dashed var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 3rem 2rem;
-  text-align: center;
-  transition: all var(--transition-normal);
-  position: relative;
-  cursor: pointer;
-  background: var(--color-bg-tertiary);
-}
-
-.drop-zone:hover:not(.is-uploading) {
-  border-color: var(--color-accent);
-  background: rgba(0, 102, 204, 0.05);
-}
-
-.drop-zone.drag-over {
-  border-color: var(--color-accent);
-  background: rgba(0, 102, 204, 0.1);
-  transform: scale(1.02);
-}
-
-.drop-zone.is-uploading {
-  cursor: not-allowed;
-  opacity: 0.8;
-}
-
-.drop-zone.has-error {
-  border-color: var(--color-error);
-  background: var(--color-error-bg);
-}
-
-.file-input {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  pointer-events: none;
-}
-
-.drop-zone-content {
-  pointer-events: none;
-}
-
-.upload-status {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.status-icon {
-  font-size: 3rem;
-  font-weight: bold;
-}
-
-.upload-status.error .status-icon {
-  color: var(--color-error);
-}
-
-.status-text {
-  font-size: 1.1rem;
-  font-weight: 500;
-  margin: 0;
-}
-
-.file-info {
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
-.retry-button {
-  pointer-events: auto;
-  margin-top: 0.5rem;
-}
-
-.upload-prompt {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.upload-icon {
-  width: 4rem;
-  height: 4rem;
-  color: var(--color-accent);
-  transition: transform var(--transition-fast);
-}
-
-.drop-zone:hover:not(.is-uploading) .upload-icon {
-  transform: translateY(-4px);
-}
-
-.prompt-text {
-  font-size: 1.1rem;
-  margin: 0;
-  line-height: 1.6;
-}
-
-.prompt-text strong {
-  color: var(--color-text);
-}
-
-.prompt-detail {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
-.spinner {
-  display: inline-block;
-  width: 2rem;
-  height: 2rem;
-  border: 3px solid var(--color-border);
-  border-top-color: var(--color-accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-.spinner.large {
-  width: 3rem;
-  height: 3rem;
-  border-width: 4px;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.file-requirements {
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid var(--color-border);
-}
-
-.file-requirements h3 {
-  font-size: 1rem;
-  margin-bottom: 0.75rem;
-  color: var(--color-text-secondary);
-}
-
-.file-requirements ul {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.file-requirements li {
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
-  padding-left: 1.5rem;
-  position: relative;
-}
-
-.file-requirements li::before {
-  content: '•';
-  position: absolute;
-  left: 0.5rem;
-  color: var(--color-accent);
-}
-
-/* Mobile: < 640px */
-@media (max-width: 639px) {
-  .file-upload {
-    max-width: 100%;
-  }
-
-  .drop-zone {
-    padding: 2rem 1rem;
-    min-height: 240px;
-  }
-
-  .upload-icon {
-    width: 3rem;
-    height: 3rem;
-  }
-
-  .prompt-text {
-    font-size: 0.95rem;
-  }
-
-  .prompt-text br {
-    display: none;
-  }
-
-  .file-requirements h3 {
-    font-size: 0.9rem;
-  }
-
-  .file-requirements ul {
-    gap: 0.375rem;
-  }
-
-  .file-requirements li {
-    font-size: 0.8rem;
-  }
-}
-
-/* Tablet: 640px - 1023px */
-@media (min-width: 640px) and (max-width: 1023px) {
-  .file-upload {
-    max-width: 90%;
-  }
-
-  .drop-zone {
-    padding: 2.5rem 1.5rem;
-  }
-}
-
-/* Desktop: >= 1024px */
-@media (min-width: 1024px) {
-  .file-upload {
-    max-width: 800px;
-  }
-}
-</style>

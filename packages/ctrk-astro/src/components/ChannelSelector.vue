@@ -107,10 +107,10 @@ function isChannelEnabled(channelId: string): boolean {
 </script>
 
 <template>
-  <div class="channel-selector">
+  <div class="w-full">
     <button
       @click="toggleExpanded"
-      class="selector-toggle"
+      class="flex items-center gap-2 w-full py-3 px-4 max-sm:py-2.5 max-sm:px-3.5 max-sm:min-h-[44px] bg-(--color-bg-tertiary) border border-(--color-border) rounded-sm cursor-pointer transition-colors duration-150 text-[0.95rem] max-sm:text-sm text-(--color-text-primary) hover:bg-(--color-bg-secondary) focus-visible:outline-2 focus-visible:outline-(--color-accent) focus-visible:outline-offset-2"
       :aria-expanded="expanded"
       aria-controls="channel-selector-panel"
     >
@@ -119,7 +119,7 @@ function isChannelEnabled(channelId: string): boolean {
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
-        class="icon"
+        class="w-5 h-5 max-sm:w-[1.125rem] max-sm:h-[1.125rem] text-(--color-accent)"
         aria-hidden="true"
       >
         <path
@@ -135,48 +135,50 @@ function isChannelEnabled(channelId: string): boolean {
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
-        class="chevron"
-        :class="{ expanded }"
+        class="w-4 h-4 max-sm:w-3.5 max-sm:h-3.5 ml-auto transition-transform duration-150"
+        :class="{ 'rotate-180': expanded }"
         aria-hidden="true"
       >
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
       </svg>
     </button>
 
-    <div v-if="expanded" class="selector-panel" id="channel-selector-panel" role="group" aria-label="Channel selection">
-      <div class="channel-grid">
+    <div v-if="expanded" class="mt-2 p-3 max-sm:p-2 bg-(--color-bg-tertiary) border border-(--color-border) rounded-sm" id="channel-selector-panel" role="group" aria-label="Channel selection">
+      <div class="grid grid-cols-4 sm:grid-cols-3 lg:grid-cols-4 max-sm:grid-cols-2 gap-3 max-sm:gap-2">
         <div
           v-for="group in CHANNEL_GROUPS"
           :key="group.id"
-          class="channel-group"
+          class="min-w-0"
         >
-          <label class="group-header">
+          <label class="flex items-center gap-1.5 py-1 px-1.5 mb-1 cursor-pointer rounded-sm hover:bg-(--color-bg-secondary) focus-within:outline-2 focus-within:outline-(--color-accent) focus-within:outline-offset-2">
             <input
               type="checkbox"
               :checked="isGroupFullyEnabled(group.id)"
               v-indeterminate="isGroupPartiallyEnabled(group.id)"
               @change="toggleGroup(group.id)"
+              class="cursor-pointer accent-(--color-accent) m-0"
               :aria-label="`Toggle all channels in ${group.label} group`"
             />
-            <span class="group-label">{{ group.label }}</span>
+            <span class="font-semibold text-xs max-sm:text-[0.7rem] text-(--color-text-primary) uppercase tracking-wide">{{ group.label }}</span>
           </label>
 
-          <div class="channel-list" role="group" :aria-label="`${group.label} channels`">
+          <div class="flex flex-col gap-px" role="group" :aria-label="`${group.label} channels`">
             <label
               v-for="channel in group.channels"
               :key="channel.id"
-              class="channel-item"
-              :class="{ enabled: isChannelEnabled(channel.id) }"
+              class="flex items-center gap-1.5 py-1 px-1.5 max-sm:py-1.5 max-sm:px-1 max-sm:min-h-[36px] rounded-sm cursor-pointer transition-colors duration-150 text-xs max-sm:text-[0.75rem] hover:bg-(--color-bg-secondary) focus-within:outline-2 focus-within:outline-(--color-accent) focus-within:outline-offset-2"
+              :class="{ 'bg-(--color-highlight-info-subtle)': isChannelEnabled(channel.id) }"
             >
               <input
                 type="checkbox"
                 :checked="isChannelEnabled(channel.id)"
                 @change="toggleChannel(channel.id)"
+                class="cursor-pointer accent-(--color-accent) m-0 w-3.5 h-3.5 shrink-0"
                 :aria-label="`Toggle ${channel.label}`"
               />
-              <span class="channel-color-dot" :style="{ backgroundColor: channel.color }"></span>
-              <span class="channel-label">{{ channel.label }}</span>
-              <span v-if="channel.unit" class="channel-unit">{{ channel.unit }}</span>
+              <span class="w-2 h-2 max-sm:w-1.5 max-sm:h-1.5 rounded-full shrink-0" :style="{ backgroundColor: channel.color }"></span>
+              <span class="font-normal text-(--color-text-primary) whitespace-nowrap overflow-hidden text-ellipsis">{{ channel.label }}</span>
+              <span v-if="channel.unit" class="ml-auto text-[0.7rem] text-(--color-text-secondary) font-normal shrink-0">{{ channel.unit }}</span>
             </label>
           </div>
         </div>
@@ -184,217 +186,3 @@ function isChannelEnabled(channelId: string): boolean {
     </div>
   </div>
 </template>
-
-<style scoped>
-.channel-selector {
-  width: 100%;
-}
-
-.selector-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.75rem 1rem;
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-  font-size: 0.95rem;
-  color: var(--color-text);
-}
-
-.selector-toggle:hover {
-  background: var(--color-bg-secondary);
-}
-
-.selector-toggle .icon {
-  width: 1.25rem;
-  height: 1.25rem;
-  color: var(--color-accent);
-}
-
-.selector-toggle .chevron {
-  width: 1rem;
-  height: 1rem;
-  margin-left: auto;
-  transition: transform var(--transition-fast);
-}
-
-.selector-toggle .chevron.expanded {
-  transform: rotate(180deg);
-}
-
-.selector-panel {
-  margin-top: 0.5rem;
-  padding: 0.75rem;
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-}
-
-.channel-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.75rem;
-}
-
-.channel-group {
-  min-width: 0;
-}
-
-.group-header {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.375rem;
-  margin-bottom: 0.25rem;
-  cursor: pointer;
-  border-radius: var(--radius-xs);
-}
-
-.group-header:hover {
-  background: var(--color-bg-secondary);
-}
-
-.group-header input[type='checkbox'] {
-  cursor: pointer;
-  accent-color: var(--color-accent);
-  margin: 0;
-}
-
-.group-label {
-  font-weight: 600;
-  font-size: 0.8rem;
-  color: var(--color-text);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.channel-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.channel-item {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.375rem;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-  font-size: 0.8rem;
-}
-
-.channel-item:hover {
-  background: var(--color-bg-secondary);
-}
-
-.channel-item.enabled {
-  background: rgba(0, 102, 204, 0.06);
-}
-
-.channel-item input[type='checkbox'] {
-  cursor: pointer;
-  accent-color: var(--color-accent);
-  margin: 0;
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-.channel-color-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.channel-label {
-  font-weight: 400;
-  color: var(--color-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.channel-unit {
-  margin-left: auto;
-  font-size: 0.7rem;
-  color: var(--color-text-secondary);
-  font-weight: 400;
-  flex-shrink: 0;
-}
-
-/* Mobile: < 640px */
-@media (max-width: 639px) {
-  .selector-toggle {
-    padding: 0.625rem 0.875rem;
-    font-size: 0.875rem;
-    min-height: 44px;
-  }
-
-  .selector-toggle .icon {
-    width: 1.125rem;
-    height: 1.125rem;
-  }
-
-  .selector-toggle .chevron {
-    width: 0.875rem;
-    height: 0.875rem;
-  }
-
-  .selector-panel {
-    padding: 0.5rem;
-  }
-
-  .channel-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
-  }
-
-  .channel-item {
-    padding: 0.375rem 0.25rem;
-    font-size: 0.75rem;
-    min-height: 36px;
-  }
-
-  .group-label {
-    font-size: 0.7rem;
-  }
-
-  .channel-color-dot {
-    width: 6px;
-    height: 6px;
-  }
-}
-
-/* Tablet: 640px - 1023px */
-@media (min-width: 640px) and (max-width: 1023px) {
-  .channel-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .channel-item {
-    font-size: 0.78rem;
-  }
-}
-
-/* Desktop: >= 1024px */
-@media (min-width: 1024px) {
-  .channel-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-/* Focus styles for accessibility */
-.selector-toggle:focus-visible,
-.group-header:focus-within,
-.channel-item:focus-within {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-</style>

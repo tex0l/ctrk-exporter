@@ -509,16 +509,16 @@ function renderBooleanChart() {
 </script>
 
 <template>
-  <div class="telemetry-chart-container">
-    <div class="chart-header">
-      <h2>Telemetry Charts</h2>
+  <div class="flex flex-col gap-4">
+    <div class="flex justify-between items-center">
+      <h2 class="m-0 text-xl max-sm:text-lg">Telemetry Charts</h2>
     </div>
 
     <ChannelSelector v-model="enabledChannelIds" />
 
-    <div v-if="!hasData" class="no-data" role="img" aria-label="No telemetry data available">
+    <div v-if="!hasData" class="flex flex-col items-center justify-center py-12 px-8 max-sm:py-8 max-sm:px-4 text-(--color-text-secondary) text-center" role="img" aria-label="No telemetry data available">
       <svg
-        class="no-data-icon"
+        class="w-12 h-12 max-sm:w-10 max-sm:h-10 mb-4 opacity-50"
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
         viewBox="0 0 24 24"
@@ -532,156 +532,33 @@ function renderBooleanChart() {
           d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"
         />
       </svg>
-      <p>No telemetry data available</p>
+      <p class="max-sm:text-sm">No telemetry data available</p>
     </div>
 
-    <div v-else-if="enabledChannelIds.length === 0" class="no-channels">
-      <p>No channels selected. Please select at least one channel above.</p>
+    <div v-else-if="enabledChannelIds.length === 0" class="flex flex-col items-center justify-center py-12 px-8 max-sm:py-8 max-sm:px-4 text-(--color-text-secondary) text-center">
+      <p class="max-sm:text-sm">No channels selected. Please select at least one channel above.</p>
     </div>
 
     <template v-else>
       <div
         v-if="hasAnalogChannels"
-        class="chart-wrapper chart-analog"
+        class="chart-analog w-full p-4 max-sm:p-3 bg-(--color-bg-tertiary) border border-(--color-border) rounded-sm h-[500px] sm:h-[400px] lg:h-[500px] max-sm:h-[300px]"
         role="img"
         :aria-label="analogChartSummary"
       >
         <span class="sr-only">{{ analogChartSummary }}</span>
-        <canvas ref="analogCanvas"></canvas>
+        <canvas ref="analogCanvas" class="max-h-full"></canvas>
       </div>
 
       <div
         v-if="hasBooleanChannels"
-        class="chart-wrapper chart-boolean"
+        class="chart-boolean w-full p-4 max-sm:p-3 bg-(--color-bg-tertiary) border border-(--color-border) rounded-sm h-[150px] sm:h-[140px] lg:h-[150px] max-sm:h-[120px]"
         role="img"
         :aria-label="booleanChartSummary"
       >
         <span class="sr-only">{{ booleanChartSummary }}</span>
-        <canvas ref="booleanCanvas"></canvas>
+        <canvas ref="booleanCanvas" class="max-h-full"></canvas>
       </div>
     </template>
   </div>
 </template>
-
-<style scoped>
-.telemetry-chart-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.chart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.chart-header h2 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.no-data,
-.no-channels {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem 2rem;
-  color: var(--color-text-secondary);
-  text-align: center;
-}
-
-.no-data-icon {
-  width: 3rem;
-  height: 3rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
-.chart-wrapper {
-  width: 100%;
-  padding: 1rem;
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-}
-
-.chart-wrapper canvas {
-  max-height: 100%;
-}
-
-.chart-analog {
-  height: 500px;
-}
-
-.chart-boolean {
-  height: 150px;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
-}
-
-/* Mobile: < 640px */
-@media (max-width: 639px) {
-  .chart-header h2 {
-    font-size: 1.125rem;
-  }
-
-  .chart-analog {
-    height: 300px;
-    padding: 0.75rem;
-  }
-
-  .chart-boolean {
-    height: 120px;
-    padding: 0.75rem;
-  }
-
-  .no-data,
-  .no-channels {
-    padding: 2rem 1rem;
-  }
-
-  .no-data-icon {
-    width: 2.5rem;
-    height: 2.5rem;
-  }
-
-  .no-data p,
-  .no-channels p {
-    font-size: 0.9rem;
-  }
-}
-
-/* Tablet: 640px - 1023px */
-@media (min-width: 640px) and (max-width: 1023px) {
-  .chart-analog {
-    height: 400px;
-  }
-
-  .chart-boolean {
-    height: 140px;
-  }
-}
-
-/* Desktop: >= 1024px */
-@media (min-width: 1024px) {
-  .chart-analog {
-    height: 500px;
-  }
-
-  .chart-boolean {
-    height: 150px;
-  }
-}
-</style>

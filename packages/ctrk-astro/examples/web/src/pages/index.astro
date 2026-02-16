@@ -9,10 +9,10 @@ import Toast from '@tex0l/ctrk-astro/components/Toast.vue';
 <BaseLayout title="CTRK Exporter">
   <AppHeader slot="header" client:only="vue" />
 
-  <div class="container">
-    <div class="hero">
-      <h1>CTRK Telemetry Exporter</h1>
-      <p class="hero-description">
+  <div class="max-w-[1400px] mx-auto px-4 pb-8 sm:px-6 sm:pb-12 lg:px-8 lg:pb-16">
+    <div class="text-center mb-12 max-sm:mb-8">
+      <h1 class="hero-title text-[1.75rem] sm:text-[2.25rem] lg:text-[2.5rem] mb-4">CTRK Telemetry Exporter</h1>
+      <p class="text-lg max-sm:text-[0.95rem] text-(--color-text-secondary) max-w-[700px] mx-auto leading-relaxed max-sm:px-2">
         Parse and analyze Yamaha Y-Trac telemetry files (.CTRK) directly in your browser.
         No server required, all processing happens locally on your device.
       </p>
@@ -20,7 +20,7 @@ import Toast from '@tex0l/ctrk-astro/components/Toast.vue';
 
     <FileUpload client:only="vue" />
 
-    <div id="analysis-section">
+    <div class="mt-8 max-sm:mt-6">
       <AnalyzePage client:only="vue" />
     </div>
   </div>
@@ -29,81 +29,11 @@ import Toast from '@tex0l/ctrk-astro/components/Toast.vue';
 </BaseLayout>
 
 <style>
-  .container {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 0 2rem 4rem;
-  }
-
-  .hero {
-    text-align: center;
-    margin-bottom: 3rem;
-  }
-
-  .hero h1 {
-    font-size: 2.5rem;
-    margin-bottom: 1rem;
+  /* Gradient text can't be expressed purely with Tailwind utilities */
+  .hero-title {
     background: linear-gradient(135deg, var(--color-accent), var(--color-info));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-  }
-
-  .hero-description {
-    font-size: 1.125rem;
-    color: var(--color-text-secondary);
-    max-width: 700px;
-    margin: 0 auto;
-    line-height: 1.6;
-  }
-
-  #analysis-section {
-    margin-top: 2rem;
-  }
-
-  /* Mobile: < 640px */
-  @media (max-width: 639px) {
-    .container {
-      padding: 0 1rem 2rem;
-    }
-
-    .hero {
-      margin-bottom: 2rem;
-    }
-
-    .hero h1 {
-      font-size: 1.75rem;
-    }
-
-    .hero-description {
-      font-size: 0.95rem;
-      padding: 0 0.5rem;
-    }
-
-    #analysis-section {
-      margin-top: 1.5rem;
-    }
-  }
-
-  /* Tablet: 640px - 1023px */
-  @media (min-width: 640px) and (max-width: 1023px) {
-    .container {
-      padding: 0 1.5rem 3rem;
-    }
-
-    .hero h1 {
-      font-size: 2.25rem;
-    }
-
-    .hero-description {
-      font-size: 1.0625rem;
-    }
-  }
-
-  /* Desktop: >= 1024px */
-  @media (min-width: 1024px) {
-    .container {
-      padding: 0 2rem 4rem;
-    }
   }
 </style>

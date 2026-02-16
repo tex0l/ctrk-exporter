@@ -161,16 +161,21 @@ function fitToBounds() {
 </script>
 
 <template>
-  <div class="track-map-container">
-    <div class="map-header">
-      <h2>GPS Track Map</h2>
-      <button v-if="hasGpsData" @click="fitToBounds" class="fit-button" title="Fit to track">
+  <div class="flex flex-col h-full min-h-[400px] max-sm:min-h-[250px] sm:min-h-[350px] lg:min-h-[450px]">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="m-0 text-xl max-sm:text-lg">GPS Track Map</h2>
+      <button
+        v-if="hasGpsData"
+        @click="fitToBounds"
+        class="flex items-center justify-center w-10 h-10 max-sm:w-11 max-sm:h-11 max-sm:min-w-[44px] max-sm:min-h-[44px] p-0 bg-(--color-accent) text-white border-none rounded-sm cursor-pointer transition-colors duration-150 hover:bg-(--color-accent-hover)"
+        title="Fit to track"
+      >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
-          class="icon"
+          class="w-5 h-5 max-sm:w-[1.125rem] max-sm:h-[1.125rem]"
         >
           <path
             stroke-linecap="round"
@@ -182,9 +187,9 @@ function fitToBounds() {
       </button>
     </div>
 
-    <div v-if="!hasGpsData" class="no-gps" role="img" aria-label="No GPS data available">
+    <div v-if="!hasGpsData" class="flex flex-col items-center justify-center h-[400px] max-sm:h-[250px] sm:h-[350px] lg:h-[450px] text-(--color-text-secondary) text-center" role="img" aria-label="No GPS data available">
       <svg
-        class="no-gps-icon"
+        class="w-12 h-12 mb-4 opacity-50"
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
         viewBox="0 0 24 24"
@@ -201,147 +206,20 @@ function fitToBounds() {
       <p>No GPS data available</p>
     </div>
 
-    <div v-else ref="mapContainer" class="map" role="img" :aria-label="trackSummary">
+    <div
+      v-else
+      ref="mapContainer"
+      class="flex-1 min-h-[400px] max-sm:min-h-[250px] sm:min-h-[350px] lg:min-h-[450px] rounded-sm overflow-hidden border border-(--color-border) z-[1] touch-manipulation"
+      role="img"
+      :aria-label="trackSummary"
+    >
       <span class="sr-only">{{ trackSummary }}</span>
     </div>
   </div>
 </template>
 
-<style scoped>
-.track-map-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 400px;
-}
-
-.map-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.map-header h2 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.fit-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  padding: 0;
-  background: var(--color-accent);
-  color: white;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.fit-button:hover {
-  background: var(--color-accent-hover, #005fa3);
-}
-
-.fit-button .icon {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-.no-gps {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 400px;
-  color: var(--color-text-secondary);
-  text-align: center;
-}
-
-.no-gps-icon {
-  width: 3rem;
-  height: 3rem;
-  margin-bottom: 1rem;
-  opacity: 0.5;
-}
-
-.map {
-  flex: 1;
-  min-height: 400px;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  z-index: 1;
-  touch-action: manipulation;
-}
-
-/* Mobile: < 640px */
-@media (max-width: 639px) {
-  .track-map-container {
-    min-height: 250px;
-  }
-
-  .map-header h2 {
-    font-size: 1.125rem;
-  }
-
-  .fit-button {
-    width: 2.75rem;
-    height: 2.75rem;
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  .fit-button .icon {
-    width: 1.125rem;
-    height: 1.125rem;
-  }
-
-  .map {
-    min-height: 250px;
-  }
-
-  .no-gps {
-    height: 250px;
-  }
-}
-
-/* Tablet: 640px - 1023px */
-@media (min-width: 640px) and (max-width: 1023px) {
-  .track-map-container {
-    min-height: 350px;
-  }
-
-  .map {
-    min-height: 350px;
-  }
-
-  .no-gps {
-    height: 350px;
-  }
-}
-
-/* Desktop: >= 1024px */
-@media (min-width: 1024px) {
-  .track-map-container {
-    min-height: 450px;
-  }
-
-  .map {
-    min-height: 450px;
-  }
-
-  .no-gps {
-    height: 450px;
-  }
-}
-</style>
-
 <style>
-/* Global styles for Leaflet markers (not scoped) */
+/* Global styles for Leaflet markers (not scoped — Leaflet injects these dynamically) */
 .lap-marker {
   background: transparent !important;
   border: none !important;
@@ -360,5 +238,11 @@ function fitToBounds() {
   font-weight: 600;
   color: #333;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Ensure Leaflet map renders correctly */
+.leaflet-container {
+  z-index: 1;
+  border-radius: 0.5rem;
 }
 </style>

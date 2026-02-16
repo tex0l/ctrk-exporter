@@ -49,13 +49,13 @@ function handleExport() {
 </script>
 
 <template>
-  <div class="lap-timing-table">
-    <div class="table-header">
-      <h2>Lap Timing</h2>
+  <div class="flex flex-col gap-4">
+    <div class="flex justify-between items-center mb-2 max-sm:flex-col max-sm:items-start max-sm:gap-2">
+      <h2 class="m-0 text-xl max-sm:text-lg">Lap Timing</h2>
       <button
         v-if="lapTimes.length > 0"
         @click="handleExport"
-        class="export-button"
+        class="flex items-center gap-2 px-4 py-2 max-sm:px-3.5 max-sm:py-2 max-sm:min-h-[44px] text-sm max-sm:text-xs bg-(--color-accent) text-white border-none rounded-sm cursor-pointer transition-colors duration-150 hover:bg-(--color-accent-hover)"
         title="Export to CSV"
       >
         <svg
@@ -63,7 +63,7 @@ function handleExport() {
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
-          class="icon"
+          class="w-4 h-4 max-sm:w-3.5 max-sm:h-3.5"
         >
           <path
             stroke-linecap="round"
@@ -76,73 +76,80 @@ function handleExport() {
       </button>
     </div>
 
-    <div v-if="sessionSummary.totalLaps === 0" class="no-data">
+    <div v-if="sessionSummary.totalLaps === 0" class="p-8 max-sm:p-6 text-center text-(--color-text-secondary) max-sm:text-sm">
       <p>No lap data available</p>
     </div>
 
     <div v-else>
       <!-- Session Summary -->
-      <div class="session-summary">
-        <div class="summary-item">
-          <span class="summary-label">Total Laps</span>
-          <span class="summary-value">{{ sessionSummary.totalLaps }}</span>
+      <div class="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] max-sm:grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(120px,1fr))] lg:grid-cols-4 gap-4 max-sm:gap-3 mb-4 p-4 max-sm:p-3 bg-(--color-bg-tertiary) rounded-sm">
+        <div class="flex flex-col gap-1">
+          <span class="text-xs max-sm:text-[0.7rem] text-(--color-text-secondary) uppercase tracking-wide">Total Laps</span>
+          <span class="text-lg max-sm:text-base font-semibold text-(--color-text-primary)">{{ sessionSummary.totalLaps }}</span>
         </div>
-        <div class="summary-item">
-          <span class="summary-label">Best Lap</span>
-          <span class="summary-value">{{ sessionSummary.bestLap ?? '-' }}</span>
+        <div class="flex flex-col gap-1">
+          <span class="text-xs max-sm:text-[0.7rem] text-(--color-text-secondary) uppercase tracking-wide">Best Lap</span>
+          <span class="text-lg max-sm:text-base font-semibold text-(--color-text-primary)">{{ sessionSummary.bestLap ?? '-' }}</span>
         </div>
-        <div class="summary-item">
-          <span class="summary-label">Best Time</span>
-          <span class="summary-value">
+        <div class="flex flex-col gap-1">
+          <span class="text-xs max-sm:text-[0.7rem] text-(--color-text-secondary) uppercase tracking-wide">Best Time</span>
+          <span class="text-lg max-sm:text-base font-semibold text-(--color-text-primary)">
             {{ sessionSummary.bestTime_ms ? formatLapTime(sessionSummary.bestTime_ms) : '-' }}
           </span>
         </div>
-        <div class="summary-item">
-          <span class="summary-label">Average Time</span>
-          <span class="summary-value">
+        <div class="flex flex-col gap-1">
+          <span class="text-xs max-sm:text-[0.7rem] text-(--color-text-secondary) uppercase tracking-wide">Average Time</span>
+          <span class="text-lg max-sm:text-base font-semibold text-(--color-text-primary)">
             {{ sessionSummary.averageTime_ms ? formatLapTime(sessionSummary.averageTime_ms) : '-' }}
           </span>
         </div>
       </div>
 
       <!-- Lap Times Table -->
-      <div class="table-container">
-        <table>
+      <div class="overflow-x-auto max-sm:touch-pan-x border border-(--color-border) rounded-sm">
+        <table class="w-full border-collapse text-sm max-sm:text-[0.85rem] max-sm:min-w-[300px]">
           <caption class="sr-only">
             Lap timing data showing {{ lapTimes.length }} laps
           </caption>
-          <thead>
+          <thead class="bg-(--color-bg-tertiary) border-b-2 border-(--color-border)">
             <tr>
-              <th scope="col">Lap</th>
-              <th scope="col">Time</th>
-              <th scope="col">Delta</th>
+              <th class="text-left px-4 py-3 max-sm:px-3 max-sm:py-2 font-semibold text-(--color-text-secondary) text-sm max-sm:text-xs uppercase tracking-wide" scope="col">Lap</th>
+              <th class="text-left px-4 py-3 max-sm:px-3 max-sm:py-2 font-semibold text-(--color-text-secondary) text-sm max-sm:text-xs uppercase tracking-wide" scope="col">Time</th>
+              <th class="text-left px-4 py-3 max-sm:px-3 max-sm:py-2 font-semibold text-(--color-text-secondary) text-sm max-sm:text-xs uppercase tracking-wide" scope="col">Delta</th>
             </tr>
           </thead>
           <tbody>
             <tr
-              :class="{ 'selected': selectedLap === null }"
+              :class="[
+                'border-b border-(--color-border) cursor-pointer transition-colors duration-150 hover:bg-(--color-bg-tertiary)',
+                selectedLap === null ? 'bg-(--color-highlight-info) font-semibold' : '',
+              ]"
               aria-label="All laps"
               tabindex="0"
               @click="handleLapClick(null)"
               @keydown="handleKeyDown($event, null, 0)"
             >
-              <td class="lap-number all-laps-label" colspan="3">All Laps</td>
+              <td class="px-4 py-3 max-sm:px-3 max-sm:py-2 text-center font-semibold text-sm uppercase tracking-wide text-(--color-text-secondary)" colspan="3">All Laps</td>
             </tr>
             <tr
               v-for="(lapTime, index) in lapTimes"
               :key="lapTime.lap"
-              :class="{
-                'best-lap': lapTime.isBest,
-                'selected': selectedLap === lapTime.lap,
-              }"
+              :class="[
+                'border-b border-(--color-border) cursor-pointer transition-colors duration-150',
+                lapTime.isBest ? 'bg-(--color-highlight-success) hover:bg-(--color-highlight-success-hover)' : 'hover:bg-(--color-bg-tertiary)',
+                selectedLap === lapTime.lap ? (lapTime.isBest ? 'bg-(--color-highlight-success-hover) font-semibold' : 'bg-(--color-highlight-info) font-semibold') : '',
+              ]"
               :aria-label="lapTime.isBest ? `Lap ${lapTime.lap} (best lap)` : `Lap ${lapTime.lap}`"
               tabindex="0"
               @click="handleLapClick(lapTime.lap)"
               @keydown="handleKeyDown($event, lapTime.lap, index + 1)"
             >
-              <td class="lap-number">{{ lapTime.lap }}</td>
-              <td class="lap-time">{{ formatLapTime(lapTime.time_ms) }}</td>
-              <td class="lap-delta" :class="{ 'zero-delta': lapTime.delta_ms === 0 }">
+              <td class="px-4 py-3 max-sm:px-3 max-sm:py-2 font-semibold text-(--color-text-primary)">{{ lapTime.lap }}</td>
+              <td class="px-4 py-3 max-sm:px-3 max-sm:py-2 font-mono text-(--color-text-primary)">{{ formatLapTime(lapTime.time_ms) }}</td>
+              <td :class="[
+                'px-4 py-3 max-sm:px-3 max-sm:py-2 font-mono text-(--color-text-secondary)',
+                lapTime.delta_ms === 0 ? 'text-(--color-success) font-semibold' : '',
+              ]">
                 {{ lapTime.delta_ms !== null ? formatDelta(lapTime.delta_ms) : '-' }}
               </td>
             </tr>
@@ -152,243 +159,3 @@ function handleExport() {
     </div>
   </div>
 </template>
-
-<style scoped>
-.lap-timing-table {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.table-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.table-header h2 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.export-button {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  background: var(--color-accent);
-  color: white;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.export-button:hover {
-  background: var(--color-accent-hover, #005fa3);
-}
-
-.export-button .icon {
-  width: 1rem;
-  height: 1rem;
-}
-
-.no-data {
-  padding: 2rem;
-  text-align: center;
-  color: var(--color-text-secondary);
-}
-
-.session-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1rem;
-  padding: 1rem;
-  background: var(--color-bg-tertiary);
-  border-radius: var(--radius-sm);
-}
-
-.summary-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.summary-label {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.summary-value {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.table-container {
-  overflow-x: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-thead {
-  background: var(--color-bg-tertiary);
-  border-bottom: 2px solid var(--color-border);
-}
-
-th {
-  text-align: left;
-  padding: 0.75rem 1rem;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-tbody tr {
-  border-bottom: 1px solid var(--color-border);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-tbody tr:hover {
-  background: var(--color-bg-tertiary);
-}
-
-tbody tr.selected {
-  background: rgba(0, 102, 204, 0.1);
-  font-weight: 600;
-}
-
-tbody tr.best-lap {
-  background: rgba(46, 204, 113, 0.1);
-}
-
-tbody tr.best-lap:hover {
-  background: rgba(46, 204, 113, 0.2);
-}
-
-tbody tr.best-lap.selected {
-  background: rgba(46, 204, 113, 0.2);
-}
-
-td {
-  padding: 0.75rem 1rem;
-}
-
-.lap-number {
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.all-laps-label {
-  text-align: center;
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-secondary);
-}
-
-.lap-time {
-  font-family: 'Monaco', 'Courier New', monospace;
-  color: var(--color-text);
-}
-
-.lap-delta {
-  font-family: 'Monaco', 'Courier New', monospace;
-  color: var(--color-text-secondary);
-}
-
-.lap-delta.zero-delta {
-  color: var(--color-success, #2ecc71);
-  font-weight: 600;
-}
-
-/* Mobile: < 640px */
-@media (max-width: 639px) {
-  .table-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-
-  .table-header h2 {
-    font-size: 1.125rem;
-  }
-
-  .export-button {
-    padding: 0.5rem 0.875rem;
-    font-size: 0.8rem;
-    min-height: 44px;
-  }
-
-  .export-button .icon {
-    width: 0.875rem;
-    height: 0.875rem;
-  }
-
-  .session-summary {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-    padding: 0.75rem;
-  }
-
-  .summary-label {
-    font-size: 0.7rem;
-  }
-
-  .summary-value {
-    font-size: 1rem;
-  }
-
-  .table-container {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  table {
-    font-size: 0.85rem;
-    min-width: 300px;
-  }
-
-  th {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.8rem;
-  }
-
-  td {
-    padding: 0.5rem 0.75rem;
-  }
-
-  .no-data {
-    padding: 1.5rem;
-    font-size: 0.9rem;
-  }
-}
-
-/* Tablet: 640px - 1023px */
-@media (min-width: 640px) and (max-width: 1023px) {
-  .session-summary {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* Desktop: >= 1024px */
-@media (min-width: 1024px) {
-  .session-summary {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-</style>

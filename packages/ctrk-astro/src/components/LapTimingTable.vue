@@ -2,9 +2,9 @@
 import { computed } from 'vue';
 import { useTelemetryData } from '@tex0l/ctrk-astro/composables';
 import { computeLapTimes, computeSessionSummary, formatLapTime, formatDelta } from '@tex0l/ctrk-astro/lib/lap-timing';
-import { exportAndDownloadLapTimes } from '@tex0l/ctrk-astro/lib/export-utils';
+import { exportAndDownloadTelemetry } from '@tex0l/ctrk-astro/lib/export-utils';
 
-const { records, selectedLap, selectLap } = useTelemetryData();
+const { records, selectedLap, selectLap, metadata } = useTelemetryData();
 
 const lapTimes = computed(() => computeLapTimes(records.value));
 const sessionSummary = computed(() => computeSessionSummary(lapTimes.value));
@@ -43,8 +43,9 @@ function handleKeyDown(event: KeyboardEvent, lap: number | null, index: number) 
 }
 
 function handleExport() {
-  if (lapTimes.value.length === 0) return;
-  exportAndDownloadLapTimes(lapTimes.value, 'lap_times');
+  if (records.value.length === 0) return;
+  const stem = metadata.value?.fileName?.replace(/\.ctrk$/i, '') ?? 'telemetry';
+  exportAndDownloadTelemetry(records.value, `${stem}_parsed`);
 }
 </script>
 

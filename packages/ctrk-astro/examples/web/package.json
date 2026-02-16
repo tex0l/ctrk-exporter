@@ -1,6 +1,6 @@
 {
   "name": "@tex0l/ctrk-web",
-  "version": "0.1.0-2",
+  "version": "0.1.0-3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,11 +14,13 @@
   },
   "dependencies": {
     "@astrojs/vue": "^5.0.0",
+    "@tailwindcss/vite": "^4.1.18",
     "@tex0l/ctrk-astro": "^0.1.0-0",
     "@tex0l/ctrk-parser": "^0.1.0-0",
     "astro": "^5.0.0",
     "chart.js": "^4.4.1",
     "leaflet": "^1.9.4",
+    "tailwindcss": "^4.1.18",
     "vue": "^3.5.0"
   },
   "devDependencies": {
